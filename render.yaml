@@ -1,0 +1,359 @@
+# DinariBlockchain - Render.com Deployment
+# render.yaml - Deployment configuration for Render.com (Testnet)
+
+services:
+  # Main API Service (Web Service)
+  - type: web
+    name: Dinari-testnet-api
+    runtime: docker
+    repo: https://github.com/Dinari/blockchain.git
+    branch: main
+    dockerfilePath: ./Dockerfile
+    region: oregon
+    plan: starter
+    buildCommand: echo "Building DinariBlockchain..."
+    startCommand: python app.py
+    healthCheckPath: /health
+    
+    # Environment Variables
+    envVars:
+      - key: NODE_ENV
+        value: testnet
+      - key: NODE_ID
+        value: testnet_node_1
+      - key: NODE_TYPE
+        value: validator
+      - key: P2P_PORT
+        value: 8333
+      - key: GENESIS_FILE
+        value: genesis.json
+      - key: DEBUG
+        value: false
+      - key: LOG_LEVEL
+        value: INFO
+      - key: BLOCKCHAIN_NETWORK
+        value: testnet
+      - key: MAX_PEERS
+        value: 20
+      - key: BLOCK_TIME
+        value: 15
+      - key: BOOTSTRAP_NODES
+        value: ""
+      - key: CONTRACTS_ENABLED
+        value: true
+      - key: KYC_ENABLED
+        value: false
+      - key: FIAT_CURRENCY_SUPPORT
+        value: true
+      - key: SUPPORTED_CURRENCIES
+        value: "NGN,KES,ZAR,GHS,EGP,USD"
+      - key: API_RATE_LIMIT
+        value: 100
+      
+    # Auto-deploy on git push
+    autoDeploy: true
+    
+    # Disk storage for blockchain data
+    disk:
+      name: Dinari-data
+      mountPath: /app/data
+      sizeGB: 1
+    
+    # Custom domains (optional)
+    domains:
+      - Dinari-testnet.onrender.com
+
+  # Background Worker Service (for mining/validation)
+  - type: worker
+    name: Dinari-testnet-miner
+    runtime: docker
+    repo: https://github.com/Dinari/blockchain.git
+    branch: main
+    dockerfilePath: ./Dockerfile
+    region: oregon
+    plan: starter
+    startCommand: python tools/start_node.py single miner_node --port 8334
+    
+    envVars:
+      - key: NODE_ENV
+        value: testnet
+      - key: NODE_ID
+        value: testnet_miner_1
+      - key: NODE_TYPE
+        value: validator
+      - key: P2P_PORT
+        value: 8334
+      - key: GENESIS_FILE
+        value: genesis.json
+      - key: ENABLE_MINING
+        value: true
+      
+    disk:
+      name: Dinari-miner-data
+      mountPath: /app/data
+      sizeGB: 1
+
+  # Cron Job Service (for maintenance tasks)
+  - type: cron
+    name: Dinari-testnet-backup
+    runtime: docker
+    repo: https://github.com/Dinari/blockchain.git
+    branch: main
+    dockerfilePath: ./Dockerfile
+    region: oregon
+    plan: starter
+    schedule: "0 2 * * *"  # Daily at 2 AM
+    startCommand: python tools/backup.py
+    
+    envVars:
+      - key: NODE_ENV
+        value: testnet
+      - key: BACKUP_ENABLED
+        value: true
+
+# Database (PostgreSQL)
+databases:
+  - name: Dinari-testnet-db
+    databaseName: Dinari_blockchain
+    user: Dinari
+    region: oregon
+    plan: starter
+    version: "15"
+
+# Redis (for caching)
+# Note: Redis is not directly supported in render.yaml
+# We'll use environment variables to connect to external Redis
+
+# Environment Groups (shared across services)
+envVarGroups:
+  - name: database-config
+    envVars:
+      - key: DATABASE_URL
+        fromDatabase:
+          name: Dinari-testnet-db
+          property: connectionString
+      - key: DB_SSL
+        value: true
+      - key: DB_POOL_SIZE
+        value: 10
+        
+  - name: redis-config
+    envVars:
+      - key: REDIS_URL
+        value: redis://red-xxxxx:6379  # External Redis service
+      - key: REDIS_DB
+        value: 0
+      - key: CACHE_TTL
+        value: 3600
+        
+  - name: security-config
+    envVars:
+      - key: API_SECRET_KEY
+        generateValue: true
+      - key: JWT_SECRET
+        generateValue: true
+      - key: WALLET_ENCRYPTION
+        value: true
+        
+  - name: monitoring-config
+    envVars:
+      - key: HEALTH_CHECK_ENABLED
+        value: true
+      - key: METRICS_ENABLED
+        value: true
+      - key: LOG_TO_FILE
+        value: true
+      - key: LOG_LEVEL
+        value: INFO
+
+# Build Settings
+build:
+  commands:
+    - echo "Installing dependencies..."
+    - pip install --no-cache-dir -r requirements.txt
+    - echo "Setting up data directories..."
+    - mkdir -p data logs wallets
+    - echo "Build complete!"
+
+# Deployment Settings  
+deploy:
+  region: oregon
+  plan: starter
+  autoDeploy: true
+  branch: main
+  buildCommand: echo "Deploying DinariBlockchain..."
+  
+# Health Check Configuration
+healthCheck:
+  path: /health
+  intervalSeconds: 30
+  timeoutSeconds: 10
+  unhealthyThresholdCount: 3
+  healthyThresholdCount: 2
+
+# Scaling Configuration
+scaling:
+  minInstances: 1
+  maxInstances: 3
+  targetCPUPercent: 70
+  targetMemoryPercent: 80
+
+# Logging Configuration
+logging:
+  level: INFO
+  format: json
+  retention: 7  # days
+
+# Networking
+networking:
+  allowedOrigins:
+    - https://Dinari-testnet.onrender.com
+    - https://dinari.xyz
+    - http://localhost:3000
+  cors:
+    enabled: true
+    allowCredentials: true
+
+# Backup Configuration
+backup:
+  enabled: true
+  schedule: "0 6 * * *"  # Daily at 6 AM
+  retention: 30  # days
+  
+# Monitoring & Alerts
+alerts:
+  - name: high-cpu-usage
+    metric: cpu
+    threshold: 80
+    duration: 300  # 5 minutes
+    action: email
+    
+  - name: high-memory-usage
+    metric: memory
+    threshold: 85
+    duration: 300
+    action: email
+    
+  - name: service-down
+    metric: health_check
+    threshold: 0
+    duration: 60  # 1 minute
+    action: email
+
+# Custom Headers
+headers:
+  - name: X-Powered-By
+    value: DinariBlockchain
+  - name: X-Network
+    value: Testnet
+  - name: Access-Control-Allow-Origin
+    value: "*"
+
+# Static Files (for web interface)
+staticFiles:
+  - from: web/public
+    to: /static
+
+# Environment-specific Configuration
+environments:
+  testnet:
+    envVars:
+      - key: BLOCKCHAIN_NETWORK
+        value: testnet
+      - key: DEBUG
+        value: true
+      - key: LOG_LEVEL
+        value: DEBUG
+      - key: RATE_LIMIT
+        value: 1000
+        
+  production:
+    envVars:
+      - key: BLOCKCHAIN_NETWORK
+        value: mainnet
+      - key: DEBUG
+        value: false
+      - key: LOG_LEVEL
+        value: INFO
+      - key: RATE_LIMIT
+        value: 100
+
+# Custom Build Args
+buildArgs:
+  - NODE_ENV=testnet
+  - OPTIMIZE_BUILD=true
+  - PYTHON_VERSION=3.11
+
+# Pre-deploy Commands
+preDeploy:
+  - echo "Pre-deployment checks..."
+  - python tools/test_blockchain.py --quick
+  - echo "Tests passed!"
+
+# Post-deploy Commands  
+postDeploy:
+  - echo "Post-deployment setup..."
+  - python tools/genesis_generator.py --network testnet --validate
+  - echo "Genesis validated!"
+  - echo "🚀 DinariBlockchain Testnet deployed successfully!"
+
+# Resource Limits
+resources:
+  cpu: 500m      # 0.5 CPU cores
+  memory: 512Mi  # 512MB RAM
+  storage: 1Gi   # 1GB disk
+
+# Security Settings
+security:
+  allowPrivilegeEscalation: false
+  runAsNonRoot: true
+  readOnlyRootFilesystem: false  # Need write access for blockchain data
+  
+# Startup Probe
+startupProbe:
+  httpGet:
+    path: /health
+    port: 5000
+  initialDelaySeconds: 30
+  periodSeconds: 10
+  timeoutSeconds: 5
+  failureThreshold: 10
+
+# Liveness Probe
+livenessProbe:
+  httpGet:
+    path: /health
+    port: 5000
+  initialDelaySeconds: 60
+  periodSeconds: 30
+  timeoutSeconds: 10
+  failureThreshold: 3
+
+# Readiness Probe
+readinessProbe:
+  httpGet:
+    path: /api/blockchain/info
+    port: 5000
+  initialDelaySeconds: 30
+  periodSeconds: 15
+  timeoutSeconds: 5
+  failureThreshold: 3
+
+# Auto-scaling Rules
+autoScaling:
+  enabled: true
+  minReplicas: 1
+  maxReplicas: 3
+  metrics:
+    - type: Resource
+      resource:
+        name: cpu
+        target:
+          type: Utilization
+          averageUtilization: 70
+    - type: Resource  
+      resource:
+        name: memory
+        target:
+          type: Utilization
+          averageUtilization: 80

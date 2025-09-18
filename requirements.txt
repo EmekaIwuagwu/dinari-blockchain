@@ -1,0 +1,245 @@
+# DinariBlockchain - Python Dependencies
+# requirements.txt - All required Python packages for the blockchain system
+
+# Core Python Libraries (usually included in standard library)
+# These are imported in our code but typically don't need separate installation
+
+# Cryptography and Hashing
+cryptography>=41.0.0            # For advanced cryptographic operations
+pycryptodome>=3.19.0           # Alternative crypto library for additional algorithms
+
+# Networking and Communication  
+requests>=2.31.0               # HTTP requests for external API calls
+websockets>=11.0.0             # WebSocket support for real-time communication
+aiohttp>=3.9.0                 # Async HTTP client/server for performance
+
+# Data Processing and Serialization
+pydantic>=2.5.0                # Data validation and settings management
+marshmallow>=3.20.0            # Object serialization/deserialization
+python-json-logger>=2.0.7      # Enhanced JSON logging
+
+# Database and Storage (optional, for advanced features)
+sqlite3                        # Built-in, but listed for clarity
+leveldb>=0.201                 # Fast key-value storage (optional)
+
+# Testing and Development
+pytest>=7.4.0                 # Testing framework
+pytest-asyncio>=0.21.0        # Async testing support
+pytest-cov>=4.1.0             # Code coverage reporting
+pytest-mock>=3.12.0           # Mocking for tests
+
+# Code Quality and Formatting
+black>=23.12.0                 # Code formatting
+flake8>=6.1.0                  # Code linting
+mypy>=1.7.0                    # Type checking
+isort>=5.13.0                  # Import sorting
+
+# Performance and Monitoring
+psutil>=5.9.0                  # System and process monitoring
+memory-profiler>=0.61.0       # Memory usage profiling
+py-spy>=0.3.14                # Performance profiling
+
+# Utility Libraries
+python-dateutil>=2.8.2        # Advanced date/time handling
+colorama>=0.4.6               # Colored terminal output
+tabulate>=0.9.0               # Pretty table formatting
+tqdm>=4.66.0                  # Progress bars
+click>=8.1.7                  # Command-line interface framework
+
+# Optional: Web Interface (for blockchain explorer)
+flask>=3.0.0                  # Lightweight web framework
+flask-cors>=4.0.0             # Cross-Origin Resource Sharing
+jinja2>=3.1.2                 # Template engine
+
+# Optional: Advanced Features
+numpy>=1.24.0                 # Numerical computing (for analytics)
+scipy>=1.11.0                 # Scientific computing
+matplotlib>=3.8.0             # Plotting and visualization
+pandas>=2.1.0                 # Data analysis (for transaction analytics)
+
+# Optional: Machine Learning (for fraud detection, price prediction)
+scikit-learn>=1.3.0          # Machine learning library
+
+# Development and Documentation
+sphinx>=7.2.0                # Documentation generation
+sphinx-rtd-theme>=1.3.0      # ReadTheDocs theme
+mkdocs>=1.5.0                # Alternative documentation tool
+
+# Configuration Management
+python-dotenv>=1.0.0         # Environment variable management
+configparser                 # Built-in, but used for configuration files
+
+# Logging and Monitoring
+structlog>=23.2.0            # Structured logging
+sentry-sdk>=1.39.0           # Error tracking and monitoring
+
+# Optional: GUI Development (for desktop wallet)
+tkinter                      # Built-in GUI library
+pyqt5>=5.15.0               # Advanced GUI framework (optional)
+
+# Optional: Mobile/Web Integration
+qrcode>=7.4.2               # QR code generation for addresses
+pillow>=10.1.0              # Image processing for QR codes
+
+# Optional: Advanced Networking
+paramiko>=3.4.0             # SSH client for remote node management
+fabric>=3.2.0               # Remote deployment and management
+
+# Development Tools
+setuptools>=69.0.0          # Package building and distribution
+wheel>=0.42.0               # Wheel format for package distribution
+twine>=4.0.0                # Package uploading to PyPI
+
+# Security Scanning
+bandit>=1.7.5               # Security vulnerability scanner
+safety>=2.3.0               # Dependency vulnerability scanner
+
+# Version Control Integration
+pre-commit>=3.6.0           # Git hooks for code quality
+gitpython>=3.1.40           # Git integration
+
+# Optional: Containerization Support
+docker>=6.1.0               # Docker integration
+docker-compose>=1.29.0      # Multi-container Docker applications
+
+# Data Validation and Processing
+jsonschema>=4.20.0          # JSON schema validation
+cerberus>=1.3.5             # Data validation
+validators>=0.22.0          # Input validation
+
+# Optional: Database Drivers (for enterprise features)
+psycopg2-binary>=2.9.9     # PostgreSQL adapter
+pymongo>=4.6.0             # MongoDB driver
+redis>=5.0.0               # Redis client
+
+# Time and Timezone Handling
+pytz>=2023.3               # Timezone definitions
+tzlocal>=5.2               # Local timezone detection
+
+# Optional: Blockchain Interoperability
+web3>=6.15.0               # Ethereum integration
+bitcoinlib>=0.12.0         # Bitcoin integration
+
+# Performance Optimization
+cython>=3.0.0              # Python to C compilation
+numba>=0.58.0              # JIT compilation for numerical functions
+
+# Optional: API Development
+fastapi>=0.104.0           # Modern API framework
+uvicorn>=0.24.0            # ASGI server
+pydantic[email]>=2.5.0     # Email validation support
+
+# Monitoring and Alerting
+prometheus-client>=0.19.0   # Prometheus metrics
+grafana-api>=1.0.3         # Grafana integration
+
+# Optional: Blockchain Analysis
+networkx>=3.2.0            # Network analysis
+graph-tool>=2.45           # Advanced graph analysis (complex installation)
+
+# Testing Utilities
+factory-boy>=3.3.0         # Test data generation
+faker>=20.1.0              # Fake data generation for testing
+hypothesis>=6.92.0         # Property-based testing
+
+# Optional: Advanced Cryptography
+pynacl>=1.5.0              # Modern cryptography
+cryptography[fernet]>=41.0.0  # Symmetric encryption
+
+# Build and Distribution
+build>=1.0.0               # Modern Python build system
+pip-tools>=7.3.0           # Dependency management
+
+# Optional: Message Queuing (for high-throughput systems)
+celery>=5.3.0              # Distributed task queue
+redis>=5.0.0               # Message broker
+kombu>=5.3.0               # Message library
+
+# Development Environment
+jupyter>=1.0.0             # Interactive development
+ipython>=8.18.0            # Enhanced Python shell
+
+# Optional: Blockchain Visualization
+graphviz>=0.20.1           # Graph visualization
+plotly>=5.17.0             # Interactive plotting
+bokeh>=3.3.0               # Web-based visualization
+
+# Configuration and Deployment
+ansible>=9.0.0             # Infrastructure automation
+terraform>=1.6.0           # Infrastructure as code (external tool)
+
+# Linting and Code Analysis
+pylint>=3.0.0              # Comprehensive linting
+vulture>=2.10              # Dead code detection
+radon>=6.0.1               # Code complexity analysis
+
+# Optional: Performance Profiling
+line-profiler>=4.1.1       # Line-by-line profiling
+snakeviz>=2.2.0            # Performance visualization
+
+# Documentation Tools
+pydoc-markdown>=4.8.2      # API documentation generation
+pdoc>=14.3.0               # Automatic API documentation
+
+# Version Management
+bump2version>=1.0.1        # Version bumping automation
+semantic-version>=2.10.0   # Semantic versioning
+
+# Optional: Cloud Integration
+boto3>=1.34.0              # AWS SDK
+google-cloud-storage>=2.10.0  # Google Cloud Storage
+azure-storage-blob>=12.19.0   # Azure Blob Storage
+
+# Development Workflow
+tox>=4.11.0                # Testing across Python versions
+nox>=2023.4.22             # Flexible testing automation
+
+# Optional: Advanced Analytics
+apache-airflow>=2.8.0      # Workflow management
+dask>=2023.12.0            # Parallel computing
+
+# Security and Compliance
+cryptography>=41.0.0        # Already listed above
+python-jose>=3.3.0         # JSON Web Token implementation
+passlib>=1.7.4             # Password hashing
+
+# Optional: Time Series Data
+influxdb-client>=1.39.0    # Time series database client
+prometheus-client>=0.19.0   # Already listed above
+
+# Compatibility and Portability
+six>=1.16.0                # Python 2/3 compatibility (for dependencies)
+packaging>=23.2            # Package version handling
+
+# Optional: Advanced Networking Protocols
+pyzmq>=25.1.0              # ZeroMQ messaging
+paho-mqtt>=1.6.1           # MQTT protocol support
+
+# Binary Dependencies (platform-specific)
+# These may require system-level installation on some platforms
+# lxml>=4.9.3               # XML processing
+# Pillow>=10.1.0            # Already listed above
+# psycopg2>=2.9.9           # PostgreSQL (prefer psycopg2-binary)
+
+# Development Dependencies Only
+# (These are typically in requirements-dev.txt in larger projects)
+pdb++>=0.10.3              # Enhanced debugger
+ipdb>=0.13.13              # IPython-enabled debugger
+rich>=13.7.0               # Rich text and beautiful formatting
+
+# Platform-specific optional dependencies
+# Windows
+# pywin32>=306              # Windows-specific APIs
+
+# macOS  
+# pyobjc>=10.1              # macOS-specific APIs
+
+# Linux
+# python-systemd>=235       # systemd integration
+
+# Minimum Python Version Specification
+# python_requires>=3.8
+
+# Note: Some packages may have conflicting versions
+# Use pip-compile or poetry for dependency resolution
+# Example: pip-compile requirements.in

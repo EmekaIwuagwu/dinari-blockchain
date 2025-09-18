@@ -1,0 +1,195 @@
+# DinariBlockchain - Docker Compose
+# docker-compose.yml - Local development environment with database
+
+version: '3.8'
+
+services:
+  # PostgreSQL Database
+  postgres:
+    image: postgres:15
+    container_name: Dinari-postgres
+    environment:
+      POSTGRES_DB: Dinari_blockchain
+      POSTGRES_USER: Dinari
+      POSTGRES_PASSWORD: Dinari_dev_password
+    ports:
+      - "5432:5432"
+    volumes:
+      - postgres_data:/var/lib/postgresql/data
+      - ./database/schemas/postgresql.sql:/docker-entrypoint-initdb.d/01-schema.sql
+    networks:
+      - Dinari-network
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U Dinari"]
+      interval: 5s
+      timeout: 5s
+      retries: 5
+
+  # Redis Cache
+  redis:
+    image: redis:7-alpine
+    container_name: Dinari-redis
+    ports:
+      - "6379:6379"
+    volumes:
+      - redis_data:/data
+    networks:
+      - Dinari-network
+    healthcheck:
+      test: ["CMD", "redis-cli", "ping"]
+      interval: 5s
+      timeout: 3s
+      retries: 5
+
+  # Blockchain Node 1 (Validator)
+  node1:
+    build: .
+    container_name: Dinari-node1
+    environment:
+      - NODE_ID=node1
+      - NODE_TYPE=validator
+      - P2P_PORT=8333
+      - API_PORT=5001
+      - DATABASE_URL=postgresql://Dinari:Dinari_dev_password@postgres:5432/Dinari_blockchain
+      - REDIS_URL=redis://redis:6379/0
+      - GENESIS_FILE=/app/genesis.json
+    ports:
+      - "8333:8333"  # P2P
+      - "5001:5000"  # API
+    volumes:
+      - ./data/node1:/app/data
+      - ./logs:/app/logs
+    depends_on:
+      postgres:
+        condition: service_healthy
+      redis:
+        condition: service_healthy
+    networks:
+      - Dinari-network
+    command: python tools/start_node.py single node1 --port 8333
+    restart: unless-stopped
+
+  # Blockchain Node 2 (Validator)  
+  node2:
+    build: .
+    container_name: Dinari-node2
+    environment:
+      - NODE_ID=node2
+      - NODE_TYPE=validator
+      - P2P_PORT=8334
+      - API_PORT=5002
+      - DATABASE_URL=postgresql://Dinari:Dinari_dev_password@postgres:5432/Dinari_blockchain
+      - REDIS_URL=redis://redis:6379/1
+      - GENESIS_FILE=/app/genesis.json
+    ports:
+      - "8334:8334"  # P2P
+      - "5002:5000"  # API
+    volumes:
+      - ./data/node2:/app/data
+      - ./logs:/app/logs
+    depends_on:
+      postgres:
+        condition: service_healthy
+      redis:
+        condition: service_healthy
+      node1:
+        condition: service_started
+    networks:
+      - Dinari-network
+    command: python tools/start_node.py single node2 --port 8334 --peers node1:8333
+    restart: unless-stopped
+
+  # Blockchain Node 3 (Regular Node)
+  node3:
+    build: .
+    container_name: Dinari-node3
+    environment:
+      - NODE_ID=node3
+      - NODE_TYPE=node
+      - P2P_PORT=8335
+      - API_PORT=5003
+      - DATABASE_URL=postgresql://Dinari:Dinari_dev_password@postgres:5432/Dinari_blockchain
+      - REDIS_URL=redis://redis:6379/2
+      - GENESIS_FILE=/app/genesis.json
+    ports:
+      - "8335:8335"  # P2P
+      - "5003:5000"  # API
+    volumes:
+      - ./data/node3:/app/data
+      - ./logs:/app/logs
+    depends_on:
+      postgres:
+        condition: service_healthy
+      redis:
+        condition: service_healthy
+      node1:
+        condition: service_started
+      node2:
+        condition: service_started
+    networks:
+      - Dinari-network
+    command: python tools/start_node.py single node3 --port 8335 --peers node1:8333,node2:8334
+    restart: unless-stopped
+
+  # API Gateway & Web Interface
+  api:
+    build: .
+    container_name: Dinari-api
+    environment:
+      - NODE_ENV=development
+      - DATABASE_URL=postgresql://Dinari:Dinari_dev_password@postgres:5432/Dinari_blockchain
+      - REDIS_URL=redis://redis:6379/3
+      - BLOCKCHAIN_NODES=node1:5001,node2:5002,node3:5003
+    ports:
+      - "5000:5000"  # Main API
+    volumes:
+      - ./logs:/app/logs
+    depends_on:
+      postgres:
+        condition: service_healthy
+      redis:
+        condition: service_healthy
+      node1:
+        condition: service_started
+    networks:
+      - Dinari-network
+    command: python app.py
+    restart: unless-stopped
+
+  # Blockchain Explorer (Optional)
+  explorer:
+    build: .
+    container_name: Dinari-explorer
+    environment:
+      - NODE_ENV=development
+      - API_URL=http://api:5000
+    ports:
+      - "3000:3000"
+    depends_on:
+      - api
+    networks:
+      - Dinari-network
+    command: python -m http.server 3000
+    restart: unless-stopped
+
+# Named volumes for data persistence
+volumes:
+  postgres_data:
+    driver: local
+  redis_data:
+    driver: local
+
+# Custom network
+networks:
+  Dinari-network:
+    driver: bridge
+    ipam:
+      config:
+        - subnet: 172.20.0.0/16
+
+# Development helpers
+x-logging: &default-logging
+  driver: "json-file"
+  options:
+    max-size: "10m"
+    max-file: "3"

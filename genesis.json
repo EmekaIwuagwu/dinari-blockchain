@@ -1,0 +1,205 @@
+{
+  "network_id": "Dinari-mainnet",
+  "chain_id": 1001,
+  "consensus": "proof_of_authority",
+  "token": {
+    "name": "Dinari",
+    "symbol": "DNMR",
+    "total_supply": "100000000",
+    "decimals": 18,
+    "description": "A blockchain-based stablecoin for Africa"
+  },
+  "genesis_block": {
+    "timestamp": 1704067200,
+    "validator": "genesis",
+    "previous_hash": "0000000000000000000000000000000000000000000000000000000000000000",
+    "version": "1.0.0",
+    "created_by": "DinariBlockchain Genesis Generator"
+  },
+  "consensus_config": {
+    "type": "proof_of_authority",
+    "block_time": 30,
+    "validators": [
+      "0xDinari_Validator_Nigeria",
+      "0xDinari_Validator_Kenya",
+      "0xDinari_Validator_SouthAfrica",
+      "0xDinari_Validator_Ghana",
+      "0xDinari_Validator_Egypt"
+    ],
+    "min_validators": 3,
+    "validator_rotation": true,
+    "epoch_length": 100
+  },
+  "initial_allocation": {
+    "treasury": "40000000",
+    "development": "15000000",
+    "community": "25000000",
+    "partnerships": "10000000",
+    "team": "10000000"
+  },
+  "network": {
+    "p2p_port": 8333,
+    "rpc_port": 8334,
+    "max_peers": 50,
+    "discovery_interval": 30,
+    "bootstrap_nodes": [
+      "bootstrap1.dinari.xyz:8333",
+      "bootstrap2.dinari.xyz:8333",
+      "bootstrap3.dinari.xyz:8333",
+      "127.0.0.1:8333",
+      "127.0.0.1:8433",
+      "127.0.0.1:8533"
+    ]
+  },
+  "transaction_config": {
+    "min_fee": "0.001",
+    "max_tx_per_block": 100,
+    "max_tx_size": 1024,
+    "gas_limit": 10000000
+  },
+  "contracts": {
+    "enabled": true,
+    "max_contract_size": 65536,
+    "execution_timeout": 5000,
+    "supported_languages": [
+      "python"
+    ]
+  },
+  "economics": {
+    "target_inflation": "2.0",
+    "staking_enabled": false,
+    "governance_enabled": false,
+    "transaction_fee_distribution": {
+      "validators": "60",
+      "treasury": "25",
+      "development": "15"
+    }
+  },
+  "features": {
+    "smart_contracts": true,
+    "staking": false,
+    "governance": false,
+    "cross_chain": false,
+    "privacy": false,
+    "sharding": false
+  },
+  "african_features": {
+    "mobile_integration": {
+      "sms_transactions": true,
+      "ussd_support": true,
+      "offline_transactions": true
+    },
+    "regulatory_compliance": {
+      "kyc_required": true,
+      "aml_monitoring": true,
+      "transaction_limits": {
+        "daily_limit": "10000",
+        "monthly_limit": "100000",
+        "kyc_threshold": "1000"
+      }
+    },
+    "local_currency_pegging": {
+      "enabled": true,
+      "supported_currencies": [
+        "NGN",
+        "KES", 
+        "ZAR",
+        "GHS",
+        "EGP",
+        "USD"
+      ],
+      "stability_mechanism": "collateral_backed",
+      "reserve_ratio": "150"
+    },
+    "community_finance": {
+      "tontine_contracts": true,
+      "microfinance_support": true,
+      "group_savings": true,
+      "remittance_corridors": [
+        "Nigeria-Kenya",
+        "South Africa-Ghana",
+        "Egypt-Nigeria"
+      ]
+    },
+    "financial_inclusion": {
+      "minimum_balance": "0",
+      "low_value_transactions": true,
+      "simplified_onboarding": true,
+      "educational_resources": true
+    }
+  },
+  "security": {
+    "multi_signature_support": true,
+    "time_locked_transactions": true,
+    "fraud_detection": true,
+    "emergency_pause": true,
+    "upgrade_mechanism": "governance"
+  },
+  "interoperability": {
+    "bitcoin_bridge": false,
+    "ethereum_bridge": false,
+    "stellar_bridge": false,
+    "traditional_banking": true
+  },
+  "governance": {
+    "enabled": false,
+    "voting_power": "token_weighted",
+    "proposal_threshold": "1000000",
+    "voting_period": 604800,
+    "execution_delay": 172800
+  },
+  "metadata": {
+    "created_at": "2024-01-01T00:00:00Z",
+    "version": "1.0.0",
+    "description": "Dinari mainnet genesis configuration for African financial inclusion",
+    "website": "https://dinari.xyz",
+    "repository": "https://github.com/Dinari/blockchain",
+    "whitepaper": "https://dinari.xyz/whitepaper.pdf",
+    "contact": {
+      "email": "team@dinari.xyz",
+      "telegram": "https://t.me/Dinari",
+      "twitter": "https://twitter.com/Dinari_africa"
+    },
+    "legal": {
+      "terms_of_service": "https://dinari.xyz/terms",
+      "privacy_policy": "https://dinari.xyz/privacy",
+      "compliance": "https://dinari.xyz/compliance"
+    }
+  },
+  "technical_specifications": {
+    "hash_algorithm": "SHA-256",
+    "address_format": "DNMR + 40 characters",
+    "signature_scheme": "ECDSA",
+    "encoding": "Base58",
+    "merkle_tree": true,
+    "block_size_limit": "1MB",
+    "transaction_malleability": "fixed"
+  },
+  "deployment": {
+    "environment": "mainnet",
+    "launch_date": "2024-06-15",
+    "pre_launch_testing": true,
+    "audit_completed": false,
+    "regulatory_approval": "pending",
+    "partner_integration": "in_progress"
+  },
+  "monitoring": {
+    "blockchain_explorer": "https://explorer.dinari.xyz",
+    "network_stats": "https://stats.dinari.xyz",
+    "api_endpoints": [
+      "https://api.dinari.xyz/v1",
+      "https://rpc.dinari.xyz"
+    ],
+    "health_check": "https://health.dinari.xyz"
+  },
+  "development": {
+    "testnet_genesis": "testnet_genesis.json",
+    "devnet_genesis": "devnet_genesis.json",
+    "docker_image": "Dinari/blockchain:latest",
+    "sdk_versions": {
+      "python": "1.0.0",
+      "javascript": "1.0.0",
+      "go": "1.0.0"
+    }
+  }
+}
