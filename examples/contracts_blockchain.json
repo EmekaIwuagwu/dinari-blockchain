@@ -1,7 +1,7 @@
 {
   "genesis_config": {
     "token_name": "AfricaCoin",
-    "token_symbol": "DNMR",
+    "token_symbol": "DINARI",
     "total_supply": "10000000",
     "decimals": 18,
     "validators": [

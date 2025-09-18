@@ -4,7 +4,7 @@
   "consensus": "proof_of_authority",
   "token": {
     "name": "Dinari",
-    "symbol": "DNMR",
+    "symbol": "DINARI",
     "total_supply": "100000000",
     "decimals": 18,
     "description": "A blockchain-based stablecoin for Africa"
@@ -168,7 +168,7 @@
   },
   "technical_specifications": {
     "hash_algorithm": "SHA-256",
-    "address_format": "DNMR + 40 characters",
+    "address_format": "DINARI + 40 characters",
     "signature_scheme": "ECDSA",
     "encoding": "Base58",
     "merkle_tree": true,

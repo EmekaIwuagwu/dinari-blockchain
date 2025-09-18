@@ -488,7 +488,7 @@ def get_confirmations(tx_id):
         """Generate unique contract address"""
         contract_data = f"{deployer}{code}{time.time()}"
         address_hash = hashlib.sha256(contract_data.encode()).hexdigest()
-        return f"0xDNMR{address_hash[:37]}"  # Dinari contract prefix
+        return f"0xDINARI{address_hash[:37]}"  # Dinari contract prefix
     
     def deploy_contract(self, code: str, deployer: str, 
                        init_args: List[Any] = None) -> ContractDeployment:
@@ -585,7 +585,7 @@ if __name__ == "__main__":
     try:
         deployment = manager.deploy_from_template(
             'token', 
-            'DNMR123deployer456', 
+            'DINARI123deployer456', 
             ['AfroToken', 'ATK', '1000000']
         )
         
@@ -595,11 +595,11 @@ if __name__ == "__main__":
         print("\n💰 Testing token functions...")
         
         # Check balance
-        result = manager.call_contract(deployment.address, 'balance_of', ['DNMR123deployer456'], 'DNMR123deployer456')
+        result = manager.call_contract(deployment.address, 'balance_of', ['DINARI123deployer456'], 'DINARI123deployer456')
         print(f"Deployer balance: {result.result}")
         
         # Transfer tokens
-        result = manager.call_contract(deployment.address, 'transfer', ['DNMRuser123', 1000], 'DNMR123deployer456')
+        result = manager.call_contract(deployment.address, 'transfer', ['DINARIuser123', 1000], 'DINARI123deployer456')
         print(f"Transfer result: {result.success}")
         
         # Check events

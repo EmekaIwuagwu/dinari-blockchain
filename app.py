@@ -143,7 +143,7 @@ def blockchain_info():
         
         info = {
             'network_id': blockchain.genesis_config.get('network_id', 'unknown'),
-            'token_symbol': blockchain.genesis_config.get('token_symbol', 'DNMR'),
+            'token_symbol': blockchain.genesis_config.get('token_symbol', 'DINARI'),
             'total_supply': blockchain.genesis_config.get('total_supply', '0'),
             'chain_height': stats['total_blocks'],
             'total_transactions': stats['total_transactions'],
@@ -177,7 +177,7 @@ def get_balance(address):
         return jsonify({
             'address': address,
             'balance': str(balance),
-            'symbol': blockchain.genesis_config.get('token_symbol', 'DNMR')
+            'symbol': blockchain.genesis_config.get('token_symbol', 'DINARI')
         }), 200
         
     except Exception as e:

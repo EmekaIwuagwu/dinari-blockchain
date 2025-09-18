@@ -88,7 +88,7 @@ def comprehensive_rpc_demo():
         
         # Get treasury balance
         treasury_balance = client.get_balance("treasury")
-        print(f"✅ Treasury Balance: {treasury_balance} DNMR")
+        print(f"✅ Treasury Balance: {treasury_balance} DINARI")
         
         # Create new wallet
         wallet_result = client.create_wallet("rpc_demo_wallet")
@@ -100,7 +100,7 @@ def comprehensive_rpc_demo():
         print("\n💸 === TRANSACTION TESTS ===")
         
         # Send transaction to demo address
-        print("📤 Sending 1000 DNMR to demo address...")
+        print("📤 Sending 1000 DINARI to demo address...")
         tx_result = client.send_transaction("treasury", demo_address, "1000", "0.1")
         print(f"✅ Transaction Created:")
         print(f"   Hash: {tx_result['transaction_hash'][:20]}...")
@@ -119,7 +119,7 @@ def comprehensive_rpc_demo():
                 
                 # Check updated balance
                 new_balance = client.get_balance(demo_address)
-                print(f"✅ Demo Address Balance: {new_balance} DNMR")
+                print(f"✅ Demo Address Balance: {new_balance} DINARI")
             else:
                 print(f"⚠️  Mining failed: {mine_result['message']}")
         

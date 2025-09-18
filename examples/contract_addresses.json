@@ -1,9 +1,9 @@
 {
   "deployed_contracts": {
-    "token": "0xDNMRa5f31e45e79bbc493eb733fc562285bb49d9a",
-    "voting": "0xDNMRc30170e6c47fb4ded044ee6edbdf9e1410cda",
-    "multisig": "0xDNMR72d6a195e1d3c1a9e53c28eb5333b4ea78cab",
-    "savings": "0xDNMR3c8ecb842ae05de53fda614d109e4b7b95be7"
+    "token": "0xDINARIa5f31e45e79bbc493eb733fc562285bb49d9a",
+    "voting": "0xDINARIc30170e6c47fb4ded044ee6edbdf9e1410cda",
+    "multisig": "0xDINARI72d6a195e1d3c1a9e53c28eb5333b4ea78cab",
+    "savings": "0xDINARI3c8ecb842ae05de53fda614d109e4b7b95be7"
   },
   "deployment_summary": {
     "total_contracts": 3,

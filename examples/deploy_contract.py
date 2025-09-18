@@ -34,8 +34,8 @@ def main():
     
     genesis_config = {
         'token_name': 'AfricaCoin',
-        'token_symbol': 'DNMR',
-        'total_supply': '10000000',  # 10 million DNMR
+        'token_symbol': 'DINARI',
+        'total_supply': '10000000',  # 10 million DINARI
         'decimals': 18,
         'validators': ['validator_ghana', 'validator_nigeria', 'validator_kenya'],
         'block_time': 15,
@@ -65,7 +65,7 @@ def main():
         token_deployment = contract_manager.deploy_from_template(
             'token',
             'treasury',  # Deployer
-            ['DinariToken', 'DNMR', '1000000000']  # name, symbol, supply
+            ['DinariToken', 'DINARI', '1000000000']  # name, symbol, supply
         )
         
         token_address = token_deployment.address
@@ -87,7 +87,7 @@ def main():
         token_address, 'balance_of', ['treasury'], 'treasury'
     )
     if result.success:
-        print(f"✅ Treasury balance: {result.result:,} DNMR")
+        print(f"✅ Treasury balance: {result.result:,} DINARI")
     else:
         print(f"❌ Balance check failed: {result.error}")
     
@@ -101,7 +101,7 @@ def main():
     print(f"👥 Created test users: Alice & Bob")
     
     # Transfer tokens within contract
-    print(f"\n📤 Transferring 1000 DNMR from Treasury to Alice...")
+    print(f"\n📤 Transferring 1000 DINARI from Treasury to Alice...")
     result = contract_manager.call_contract(
         token_address, 'transfer', [alice_address, 1000], 'treasury'
     )
@@ -119,7 +119,7 @@ def main():
         token_address, 'balance_of', [alice_address], 'alice'
     )
     if result.success:
-        print(f"✅ Alice's DNMR balance: {result.result}")
+        print(f"✅ Alice's DINARI balance: {result.result}")
     
     # Step 3: Deploy Voting Contract
     print("\n🗳️  Step 3: Deploying Community Voting Contract")
@@ -231,7 +231,7 @@ def main():
     print("-" * 38)
     
     # Submit transaction proposal
-    print(f"📝 Treasury proposing to send 100 DNMR to community...")
+    print(f"📝 Treasury proposing to send 100 DINARI to community...")
     result = contract_manager.call_contract(
         multisig_address, 'submit_transaction', 
         ['community', 100, 'Community funding proposal'], 
@@ -264,7 +264,7 @@ def main():
             tx_info = result.result
             print(f"📋 Transaction {tx_id} Details:")
             print(f"   To: {tx_info['to']}")
-            print(f"   Amount: {tx_info['amount']} DNMR")
+            print(f"   Amount: {tx_info['amount']} DINARI")
             print(f"   Executed: {tx_info['executed']}")
     
     # Step 5: Mine blocks to include all transactions
@@ -381,7 +381,7 @@ def get_member_info(member_address):
         print(f"✅ African Savings contract deployed!")
         print(f"   Contract Address: {savings_address}")
         print(f"   Group: Lagos Women Cooperative")
-        print(f"   Target: 50,000 DNMR")
+        print(f"   Target: 50,000 DINARI")
         print(f"   Duration: 30 days")
         
         # Test the savings contract
@@ -406,7 +406,7 @@ def get_member_info(member_address):
             savings_address, 'contribute', [5000], alice_address
         )
         if result.success:
-            print(f"✅ Alice contributed 5,000 DNMR")
+            print(f"✅ Alice contributed 5,000 DINARI")
         
         # Check group status
         result = contract_manager.call_contract(
@@ -416,7 +416,7 @@ def get_member_info(member_address):
             status = result.result
             print(f"\n📊 Group Status:")
             print(f"   Name: {status['name']}")
-            print(f"   Progress: {status['saved']:,} / {status['target']:,} DNMR ({status['progress_percent']:.1f}%)")
+            print(f"   Progress: {status['saved']:,} / {status['target']:,} DINARI ({status['progress_percent']:.1f}%)")
             print(f"   Members: {status['members']}")
             print(f"   Completed: {'Yes' if status['completed'] else 'No'}")
             

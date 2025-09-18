@@ -170,7 +170,7 @@ class TestDinariWallet(unittest.TestCase):
         # Create new address
         new_address = self.wallet.create_new_address("test")
         self.assertIn(new_address, self.wallet.keys)
-        self.assertTrue(new_address.startswith('DNMR'))
+        self.assertTrue(new_address.startswith('DINARI'))
     
     def test_transaction_creation(self):
         """Test creating transactions from wallet"""

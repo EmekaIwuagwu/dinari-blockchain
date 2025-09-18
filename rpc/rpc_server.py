@@ -344,7 +344,7 @@ class DinariRPCServer:
     """Validate Dinari address format"""
     if not address or not isinstance(address, str):
         return False
-    if not address.startswith('DNMR') and address not in ['treasury', 'genesis']:
+    if not address.startswith('DINARI') and address not in ['treasury', 'genesis']:
         return False
     return True
 

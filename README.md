@@ -13,7 +13,7 @@ DinariBlockchain is a complete blockchain implementation built in Python, specif
 ### Core Blockchain
 - ⚡ **Fast Transactions**: 10-30 second block times with low fees
 - 🔒 **Secure Consensus**: Proof of Authority with validator management
-- 💰 **DNMR Token**: Native token with 18 decimal precision
+- 💰 **DINARI Token**: Native token with 18 decimal precision
 - 📊 **Full Validation**: Complete chain validation and integrity checks
 
 ### Smart Contracts
@@ -91,7 +91,7 @@ block = blockchain.mine_block("validator1")
 
 # Check balance
 balance = blockchain.get_balance("alice")
-print(f"Alice's balance: {balance} DNMR")
+print(f"Alice's balance: {balance} DINARI")
 ```
 
 ### 2. Wallet Management
@@ -358,7 +358,7 @@ address = contract_manager.deploy_contract(african_savings_code, 'deployer')
   "network_id": "Dinari-mainnet",
   "token": {
     "name": "Dinari",
-    "symbol": "DNMR", 
+    "symbol": "DINARI", 
     "total_supply": "100000000"
   },
   "consensus": {

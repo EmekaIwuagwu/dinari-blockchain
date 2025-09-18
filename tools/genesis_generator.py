@@ -16,7 +16,7 @@ class GenesisGenerator:
     @staticmethod
     def create_genesis_config(
         token_name: str = "Dinari",
-        token_symbol: str = "DNMR", 
+        token_symbol: str = "DINARI", 
         total_supply: str = "100000000",
         decimals: int = 18,
         block_time: int = 30,
@@ -232,7 +232,7 @@ class GenesisGenerator:
         total_supply = int(genesis_config['token']['total_supply'])
         for address, amount in allocation.items():
             percentage = (int(amount) / total_supply) * 100
-            print(f"   {address.capitalize()}: {int(amount):,} DNMR ({percentage:.1f}%)")
+            print(f"   {address.capitalize()}: {int(amount):,} DINARI ({percentage:.1f}%)")
         
         # Network configuration
         network = genesis_config['network']

@@ -34,8 +34,8 @@ def main():
     
     genesis_config = {
         'token_name': 'Dinari',
-        'token_symbol': 'DNMR',
-        'total_supply': '1000000',  # 1 million DNMR
+        'token_symbol': 'DINARI',
+        'total_supply': '1000000',  # 1 million DINARI
         'decimals': 18,
         'validators': ['validator_alice', 'validator_bob'],
         'block_time': 10,  # Fast blocks for demo
@@ -49,13 +49,13 @@ def main():
     blockchain = DinariBlockchain(genesis_config)
     print(f"✅ Blockchain created with {len(blockchain.chain)} blocks")
     print(f"   Token: {genesis_config['token_name']} ({genesis_config['token_symbol']})")
-    print(f"   Total Supply: {int(genesis_config['total_supply']):,} DNMR")
+    print(f"   Total Supply: {int(genesis_config['total_supply']):,} DINARI")
     
     # Display initial balances
     print(f"\n💰 Initial Balances:")
     for account in ['treasury', 'foundation', 'community']:
         balance = blockchain.get_balance(account)
-        print(f"   {account.capitalize()}: {balance:,} DNMR")
+        print(f"   {account.capitalize()}: {balance:,} DINARI")
     
     # Step 2: Create wallets for users
     print("\n👥 Step 2: Creating User Wallets")
@@ -73,12 +73,12 @@ def main():
     print(f"✅ Bob's wallet created")
     print(f"   Address: {bob_address}")
     
-    # Step 3: Send DNMR tokens to users
-    print("\n💸 Step 3: Distributing DNMR Tokens")
+    # Step 3: Send DINARI tokens to users
+    print("\n💸 Step 3: Distributing DINARI Tokens")
     print("-" * 40)
     
-    # Send 1000 DNMR to Alice from treasury
-    print("📤 Sending 1,000 DNMR to Alice...")
+    # Send 1000 DINARI to Alice from treasury
+    print("📤 Sending 1,000 DINARI to Alice...")
     tx1 = Transaction(
         from_address="treasury",
         to_address=alice_address,
@@ -91,8 +91,8 @@ def main():
     print(f"   Transaction created: {'✅' if success else '❌'}")
     print(f"   Hash: {tx1.calculate_hash()[:16]}...")
     
-    # Send 500 DNMR to Bob from foundation
-    print("\n📤 Sending 500 DNMR to Bob...")
+    # Send 500 DINARI to Bob from foundation
+    print("\n📤 Sending 500 DINARI to Bob...")
     tx2 = Transaction(
         from_address="foundation", 
         to_address=bob_address,
@@ -134,13 +134,13 @@ def main():
     }
     
     for account, balance in balances.items():
-        print(f"   {account}: {balance} DNMR")
+        print(f"   {account}: {balance} DINARI")
     
     # Step 6: User-to-user transaction
     print("\n🔄 Step 6: User-to-User Transaction")
     print("-" * 40)
     
-    print("📤 Alice sending 100 DNMR to Bob...")
+    print("📤 Alice sending 100 DINARI to Bob...")
     
     # Alice creates and sends transaction to Bob
     success = alice_wallet.send_transaction(
@@ -171,7 +171,7 @@ def main():
     }
     
     for account, balance in final_balances.items():
-        print(f"   {account}: {balance} DNMR")
+        print(f"   {account}: {balance} DINARI")
     
     # Step 8: Transaction history
     print("\n📊 Step 8: Transaction History")
@@ -187,9 +187,9 @@ def main():
     for i, tx in enumerate(alice_history, 1):
         tx_type = "Received" if tx.to_address == alice_address else "Sent"
         other_party = tx.from_address if tx_type == "Received" else tx.to_address
-        print(f"   {i}. {tx_type} {tx.amount} DNMR")
+        print(f"   {i}. {tx_type} {tx.amount} DINARI")
         print(f"      {'From' if tx_type == 'Received' else 'To'}: {other_party[:20]}...")
-        print(f"      Fee: {tx.fee} DNMR")
+        print(f"      Fee: {tx.fee} DINARI")
         print(f"      Time: {time.ctime(tx.timestamp)}")
         print()
     
@@ -220,7 +220,7 @@ def main():
     print(f"\n🎉 Simple Transaction Example Completed Successfully!")
     print("=" * 55)
     print(f"💡 Key Takeaways:")
-    print(f"   • Created blockchain with {genesis_config['total_supply']} DNMR tokens")
+    print(f"   • Created blockchain with {genesis_config['total_supply']} DINARI tokens")
     print(f"   • Set up {len(blockchain.validators)} validators for consensus")
     print(f"   • Created wallets for Alice and Bob")
     print(f"   • Processed {stats['total_transactions']} transactions across {stats['total_blocks']} blocks")
@@ -264,8 +264,8 @@ def interactive_mode(blockchain, alice_wallet, bob_wallet, alice_address, bob_ad
             elif choice == '3':
                 alice_balance = blockchain.get_balance(alice_address)
                 bob_balance = blockchain.get_balance(bob_address)
-                print(f"Alice: {alice_balance} DNMR")
-                print(f"Bob: {bob_balance} DNMR")
+                print(f"Alice: {alice_balance} DINARI")
+                print(f"Bob: {bob_balance} DINARI")
                 
             elif choice == '4':
                 validator = blockchain.validators[0]  # Use first validator

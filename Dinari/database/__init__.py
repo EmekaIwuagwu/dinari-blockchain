@@ -1,64 +1,20 @@
 """
-Dinari Blockchain Package
-========================
-Main package initialization for DinariBlockchain system
+Dinari Database Package
+======================
+Database storage and management for DinariBlockchain
 """
 
-# Core blockchain components
-from .blockchain import (
-    DinariBlockchain,
-    Block,
-    Transaction,
-    # SmartContract,  # ← Comment out if this class doesn't exist
-)
-
-# Consensus mechanism
-from .consensus import (
-    DelegatedProofOfStake,
-    Validator,
-)
-
-# Networking
-from .network import (
-    P2PNode,
-    DinariNode,
-)
-
-# Wallet functionality
-from .wallet import (
-    Wallet,
-    Address,
-)
-
-# Smart contracts (if they exist in a separate file)
-try:
-    from .contracts import SmartContract, ContractManager
-except ImportError:
-    # If contracts.py doesn't exist, create a placeholder
-    class SmartContract:
-        def __init__(self, name: str):
-            self.name = name
-            
-    class ContractManager:
-        def __init__(self):
-            self.contracts = {}
+# Import only the database classes, NOT blockchain classes
+from .leveldb_storage import DinariLevelDB
 
 # Package metadata
 __version__ = "1.0.0"
-__author__ = "Dinari Development Team"
-__description__ = "African Blockchain for Financial Inclusion"
+__description__ = "Database storage layer for DinariBlockchain"
 
-# Export main classes
+# Export main database classes
 __all__ = [
-    'DinariBlockchain',
-    'Block', 
-    'Transaction',
-    'SmartContract',
-    'DelegatedProofOfStake',
-    'Validator',
-    'P2PNode',
-    'DinariNode',
-    'Wallet',
-    'Address',
-    'ContractManager',
+    'DinariLevelDB',
 ]
+
+# Note: DO NOT import blockchain classes here to avoid circular imports
+# The blockchain module should import from database, not the other way around

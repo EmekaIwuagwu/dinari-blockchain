@@ -150,7 +150,7 @@ def create_test_blockchain(total_supply: str = "1000000", validators: list = Non
     
     genesis_config = {
         'token_name': 'TestDinari',
-        'token_symbol': 'TDNMR', 
+        'token_symbol': 'TDINARI', 
         'total_supply': total_supply,
         'decimals': 18,
         'validators': validators,
@@ -373,7 +373,7 @@ def quick_start_example():
     
     # Check balance
     alice_balance = blockchain.get_balance(alice_addr)
-    print(f"✅ Alice's balance: {alice_balance} DNMR")
+    print(f"✅ Alice's balance: {alice_balance} DINARI")
     
     # Deploy smart contract
     contract_addr = deploy_example_contract(blockchain, "token", "treasury")

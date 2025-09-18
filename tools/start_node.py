@@ -204,7 +204,7 @@ class NodeLauncher:
         # Use the first available node
         node = next(iter(self.running_nodes.values()))
         
-        print(f"💸 Sending transaction: {from_addr} → {to_addr} ({amount} DNMR)")
+        print(f"💸 Sending transaction: {from_addr} → {to_addr} ({amount} DINARI)")
         
         success = node.submit_transaction(from_addr, to_addr, amount, fee)
         

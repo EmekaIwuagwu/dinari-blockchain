@@ -3,17 +3,17 @@
   "version": "1.0.0",
   "created_at": 1758198067.9556355,
   "keys": {
-    "DNMRd613fa7efabfc50d7601f4c5dac9a07a4df7c3a9": {
+    "DINARId613fa7efabfc50d7601f4c5dac9a07a4df7c3a9": {
       "private_key": "f0b70f2f8ad540acb461a4b17f0a76260f4091330977b5a2e619921277bdb130",
       "public_key": "481049da05dba5bf74359856bed219da4f5662b5e056e5fc7dbcc33db73402c9",
-      "address": "DNMRd613fa7efabfc50d7601f4c5dac9a07a4df7c3a9",
+      "address": "DINARId613fa7efabfc50d7601f4c5dac9a07a4df7c3a9",
       "created_at": 1758198067.9556355
     }
   },
   "transaction_history": [
     {
       "from_address": "foundation",
-      "to_address": "DNMRd613fa7efabfc50d7601f4c5dac9a07a4df7c3a9",
+      "to_address": "DINARId613fa7efabfc50d7601f4c5dac9a07a4df7c3a9",
       "amount": "500",
       "fee": "0.1",
       "data": "Initial distribution to Bob",
@@ -22,14 +22,14 @@
       "signature": ""
     },
     {
-      "from_address": "DNMRe7b1a6be494b6bf217cb2a4485c4a102bc7b508a",
-      "to_address": "DNMRd613fa7efabfc50d7601f4c5dac9a07a4df7c3a9",
+      "from_address": "DINARIe7b1a6be494b6bf217cb2a4485c4a102bc7b508a",
+      "to_address": "DINARId613fa7efabfc50d7601f4c5dac9a07a4df7c3a9",
       "amount": "100",
       "fee": "0.1",
       "data": "",
       "nonce": 1758198067962,
       "timestamp": 1758198067.9627287,
-      "signature": "DNMR_sig_433ca9703c3d30de486111f28719b46b"
+      "signature": "DINARI_sig_433ca9703c3d30de486111f28719b46b"
     }
   ]
 }

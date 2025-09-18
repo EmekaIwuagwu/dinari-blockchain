@@ -112,9 +112,9 @@ class DinariWallet:
         # Generate public key (simplified - in production use proper elliptic curve)
         public_key = hashlib.sha256(private_key.encode()).hexdigest()
         
-        # Generate address (Dinari format: DNMR + first 20 bytes of public key hash)
+        # Generate address (Dinari format: DINARI + first 20 bytes of public key hash)
         public_key_hash = hashlib.sha256(public_key.encode()).hexdigest()
-        address = f"DNMR{public_key_hash[:40]}"
+        address = f"DINARI{public_key_hash[:40]}"
         
         # Create key pair
         key_pair = KeyPair(
@@ -174,7 +174,7 @@ class DinariWallet:
         private_key = self.keys[from_address].private_key
         transaction.signature = self._sign_transaction(transaction, private_key)
         
-        self.logger.info(f"Created transaction: {from_address} → {to_address} ({amount} DNMR)")
+        self.logger.info(f"Created transaction: {from_address} → {to_address} ({amount} DINARI)")
         
         return transaction
     
@@ -185,7 +185,7 @@ class DinariWallet:
         signature_data = f"{tx_hash}{private_key}"
         signature = hashlib.sha256(signature_data.encode()).hexdigest()
         
-        return f"DNMR_sig_{signature[:32]}"
+        return f"DINARI_sig_{signature[:32]}"
     
     def send_transaction(self, from_address: str, to_address: str, amount: str, 
                         blockchain: DinariBlockchain, fee: str = "0.001") -> bool:
@@ -272,7 +272,7 @@ class DinariWallet:
             # Generate public key and address
             public_key = hashlib.sha256(private_key.encode()).hexdigest()
             public_key_hash = hashlib.sha256(public_key.encode()).hexdigest()
-            address = f"DNMR{public_key_hash[:40]}"
+            address = f"DINARI{public_key_hash[:40]}"
             
             # Check if already exists
             if address in self.keys:
@@ -394,14 +394,14 @@ class DinariWallet:
         
         if blockchain:
             total_balance = self.get_total_balance(blockchain)
-            print(f"💰 Total Balance: {total_balance} DNMR")
+            print(f"💰 Total Balance: {total_balance} DINARI")
         
         print(f"\n📍 Addresses:")
         for i, address in enumerate(self.keys.keys(), 1):
             balance = self.get_balance(address, blockchain) if blockchain else "N/A"
             print(f"   {i}. {address[:20]}...{address[-10:]}")
             if blockchain:
-                print(f"      Balance: {balance} DNMR")
+                print(f"      Balance: {balance} DINARI")
         
         if self.transaction_history:
             print(f"\n📊 Recent Transactions (last 5):")
@@ -410,7 +410,7 @@ class DinariWallet:
             for tx in recent_txs:
                 tx_type = "Sent" if tx.from_address in self.keys else "Received"
                 other_address = tx.to_address if tx_type == "Sent" else tx.from_address
-                print(f"   🔸 {tx_type}: {tx.amount} DNMR")
+                print(f"   🔸 {tx_type}: {tx.amount} DINARI")
                 print(f"      {'To' if tx_type == 'Sent' else 'From'}: {other_address[:20]}...{other_address[-10:]}")
                 print(f"      Date: {time.ctime(tx.timestamp)}")
         

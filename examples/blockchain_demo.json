@@ -1,7 +1,7 @@
 {
   "genesis_config": {
     "token_name": "Dinari",
-    "token_symbol": "DNMR",
+    "token_symbol": "DINARI",
     "total_supply": "1000000",
     "decimals": 18,
     "validators": [
@@ -62,7 +62,7 @@
       "transactions": [
         {
           "from_address": "treasury",
-          "to_address": "DNMRe7b1a6be494b6bf217cb2a4485c4a102bc7b508a",
+          "to_address": "DINARIe7b1a6be494b6bf217cb2a4485c4a102bc7b508a",
           "amount": "1000",
           "fee": "0.1",
           "data": "Initial distribution to Alice",
@@ -72,7 +72,7 @@
         },
         {
           "from_address": "foundation",
-          "to_address": "DNMRd613fa7efabfc50d7601f4c5dac9a07a4df7c3a9",
+          "to_address": "DINARId613fa7efabfc50d7601f4c5dac9a07a4df7c3a9",
           "amount": "500",
           "fee": "0.1",
           "data": "Initial distribution to Bob",
@@ -91,14 +91,14 @@
       "timestamp": 1758198067.9650366,
       "transactions": [
         {
-          "from_address": "DNMRe7b1a6be494b6bf217cb2a4485c4a102bc7b508a",
-          "to_address": "DNMRd613fa7efabfc50d7601f4c5dac9a07a4df7c3a9",
+          "from_address": "DINARIe7b1a6be494b6bf217cb2a4485c4a102bc7b508a",
+          "to_address": "DINARId613fa7efabfc50d7601f4c5dac9a07a4df7c3a9",
           "amount": "100",
           "fee": "0.1",
           "data": "",
           "nonce": 1758198067962,
           "timestamp": 1758198067.9627287,
-          "signature": "DNMR_sig_433ca9703c3d30de486111f28719b46b"
+          "signature": "DINARI_sig_433ca9703c3d30de486111f28719b46b"
         }
       ],
       "previous_hash": "54421a1a29bce27359e6fcef584c3903c8a5c80b3032d4fe2880b7dc03d30079",
@@ -111,8 +111,8 @@
     "treasury": "498999.9",
     "foundation": "299499.9",
     "community": "200000",
-    "DNMRe7b1a6be494b6bf217cb2a4485c4a102bc7b508a": "899.9",
-    "DNMRd613fa7efabfc50d7601f4c5dac9a07a4df7c3a9": "600"
+    "DINARIe7b1a6be494b6bf217cb2a4485c4a102bc7b508a": "899.9",
+    "DINARId613fa7efabfc50d7601f4c5dac9a07a4df7c3a9": "600"
   },
   "validators": [
     "validator_alice",
