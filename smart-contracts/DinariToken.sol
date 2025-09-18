@@ -10,7 +10,7 @@ contract DinariToken {
     
     // Token metadata
     string public name = "Dinari";
-    string public symbol = "DNR";
+    string public symbol = "DNMR";
     uint8 public decimals = 18;
     uint256 public totalSupply;
     

@@ -1,0 +1,14 @@
+{
+  "name": "bob_contract_wallet",
+  "version": "1.0.0",
+  "created_at": 1758198456.9240873,
+  "keys": {
+    "DNMRe2d58d18b927ff4b7ae9b78e17240bee79a63dbc": {
+      "private_key": "5696964c225c1c43ffcef97ff076e329d9a78aa0c6efde7b7fb450b4f3ae4951",
+      "public_key": "6c264bffbd8fdc2f00b09fd122f500ea03cbd190ff8cba762f1512a5afca31b2",
+      "address": "DNMRe2d58d18b927ff4b7ae9b78e17240bee79a63dbc",
+      "created_at": 1758198456.9240873
+    }
+  },
+  "transaction_history": []
+}

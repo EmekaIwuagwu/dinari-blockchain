@@ -53,23 +53,23 @@ def main():
     
     print(f"✅ Blockchain initialized with {len(blockchain.validators)} validators")
     print(f"✅ Contract manager ready for deployments")
-    print(f"   Total Supply: {genesis_config['total_supply']:,} {genesis_config['token_symbol']}")
+    print(f"✅  Total Supply: {int(genesis_config['total_supply']):,} {genesis_config['token_symbol']}")
     
     # Step 2: Deploy Token Contract (ERC20-like)
-    print("\n🪙 Step 2: Deploying AfroToken Contract")
+    print("\n🪙 Step 2: Deploying DinariToken Contract")
     print("-" * 45)
     
-    print("📦 Deploying AfroToken smart contract...")
+    print("📦 Deploying DinariToken smart contract...")
     
     try:
         token_deployment = contract_manager.deploy_from_template(
             'token',
             'treasury',  # Deployer
-            ['AfroToken', 'ATK', '5000000']  # name, symbol, supply
+            ['DinariToken', 'DNMR', '1000000000']  # name, symbol, supply
         )
         
         token_address = token_deployment.address
-        print(f"✅ AfroToken deployed successfully!")
+        print(f"✅ DinariToken deployed successfully!")
         print(f"   Contract Address: {token_address}")
         print(f"   Deployer: {token_deployment.deployer}")
         print(f"   Gas Used: {token_deployment.gas_used:,}")
@@ -87,7 +87,7 @@ def main():
         token_address, 'balance_of', ['treasury'], 'treasury'
     )
     if result.success:
-        print(f"✅ Treasury balance: {result.result:,} ATK")
+        print(f"✅ Treasury balance: {result.result:,} DNMR")
     else:
         print(f"❌ Balance check failed: {result.error}")
     
@@ -101,7 +101,7 @@ def main():
     print(f"👥 Created test users: Alice & Bob")
     
     # Transfer tokens within contract
-    print(f"\n📤 Transferring 1000 ATK from Treasury to Alice...")
+    print(f"\n📤 Transferring 1000 DNMR from Treasury to Alice...")
     result = contract_manager.call_contract(
         token_address, 'transfer', [alice_address, 1000], 'treasury'
     )
@@ -119,7 +119,7 @@ def main():
         token_address, 'balance_of', [alice_address], 'alice'
     )
     if result.success:
-        print(f"✅ Alice's ATK balance: {result.result}")
+        print(f"✅ Alice's DNMR balance: {result.result}")
     
     # Step 3: Deploy Voting Contract
     print("\n🗳️  Step 3: Deploying Community Voting Contract")
@@ -458,7 +458,7 @@ def get_member_info(member_address):
             'token': token_address,
             'voting': voting_address, 
             'multisig': multisig_address,
-            'savings': savings_address if 'savings_address' in locals() else None
+            'savings': savings_address.address if 'savings_address' in locals() else None
         },
         'deployment_summary': {
             'total_contracts': len(all_contracts),

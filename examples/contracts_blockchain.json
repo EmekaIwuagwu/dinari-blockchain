@@ -1,0 +1,96 @@
+{
+  "genesis_config": {
+    "token_name": "AfricaCoin",
+    "token_symbol": "DNMR",
+    "total_supply": "10000000",
+    "decimals": 18,
+    "validators": [
+      "validator_ghana",
+      "validator_nigeria",
+      "validator_kenya"
+    ],
+    "block_time": 15,
+    "initial_allocation": {
+      "treasury": "4000000",
+      "development": "2000000",
+      "community": "2000000",
+      "partnerships": "1000000",
+      "team": "1000000"
+    }
+  },
+  "chain": [
+    {
+      "index": 0,
+      "timestamp": 1758198578.5451221,
+      "transactions": [
+        {
+          "from_address": "genesis",
+          "to_address": "treasury",
+          "amount": "4000000",
+          "fee": "0",
+          "data": "Genesis allocation for treasury",
+          "nonce": 0,
+          "timestamp": 1758198578.5451221,
+          "signature": ""
+        },
+        {
+          "from_address": "genesis",
+          "to_address": "development",
+          "amount": "2000000",
+          "fee": "0",
+          "data": "Genesis allocation for development",
+          "nonce": 0,
+          "timestamp": 1758198578.5451221,
+          "signature": ""
+        },
+        {
+          "from_address": "genesis",
+          "to_address": "community",
+          "amount": "2000000",
+          "fee": "0",
+          "data": "Genesis allocation for community",
+          "nonce": 0,
+          "timestamp": 1758198578.5451221,
+          "signature": ""
+        },
+        {
+          "from_address": "genesis",
+          "to_address": "partnerships",
+          "amount": "1000000",
+          "fee": "0",
+          "data": "Genesis allocation for partnerships",
+          "nonce": 0,
+          "timestamp": 1758198578.5451221,
+          "signature": ""
+        },
+        {
+          "from_address": "genesis",
+          "to_address": "team",
+          "amount": "1000000",
+          "fee": "0",
+          "data": "Genesis allocation for team",
+          "nonce": 0,
+          "timestamp": 1758198578.5451221,
+          "signature": ""
+        }
+      ],
+      "previous_hash": "0000000000000000000000000000000000000000000000000000000000000000",
+      "validator": "genesis",
+      "nonce": 0,
+      "hash": "07069663e6efac1dbe6fe8a644c43e32ff17b24775a21ca70c40bcf32eae1e84"
+    }
+  ],
+  "balances": {
+    "treasury": "4000000",
+    "development": "2000000",
+    "community": "2000000",
+    "partnerships": "1000000",
+    "team": "1000000"
+  },
+  "validators": [
+    "validator_ghana",
+    "validator_nigeria",
+    "validator_kenya"
+  ],
+  "contracts": {}
+}

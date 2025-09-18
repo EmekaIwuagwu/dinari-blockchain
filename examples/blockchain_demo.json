@@ -1,0 +1,122 @@
+{
+  "genesis_config": {
+    "token_name": "Dinari",
+    "token_symbol": "DNMR",
+    "total_supply": "1000000",
+    "decimals": 18,
+    "validators": [
+      "validator_alice",
+      "validator_bob"
+    ],
+    "block_time": 10,
+    "initial_allocation": {
+      "treasury": "500000",
+      "foundation": "300000",
+      "community": "200000"
+    }
+  },
+  "chain": [
+    {
+      "index": 0,
+      "timestamp": 1758198067.9524527,
+      "transactions": [
+        {
+          "from_address": "genesis",
+          "to_address": "treasury",
+          "amount": "500000",
+          "fee": "0",
+          "data": "Genesis allocation for treasury",
+          "nonce": 0,
+          "timestamp": 1758198067.9524527,
+          "signature": ""
+        },
+        {
+          "from_address": "genesis",
+          "to_address": "foundation",
+          "amount": "300000",
+          "fee": "0",
+          "data": "Genesis allocation for foundation",
+          "nonce": 0,
+          "timestamp": 1758198067.9524527,
+          "signature": ""
+        },
+        {
+          "from_address": "genesis",
+          "to_address": "community",
+          "amount": "200000",
+          "fee": "0",
+          "data": "Genesis allocation for community",
+          "nonce": 0,
+          "timestamp": 1758198067.9524527,
+          "signature": ""
+        }
+      ],
+      "previous_hash": "0000000000000000000000000000000000000000000000000000000000000000",
+      "validator": "genesis",
+      "nonce": 0,
+      "hash": "19b6492ccf44bcfd1a43c8b39026d0d8551fdc794d2341c44db3cdc2097b66db"
+    },
+    {
+      "index": 1,
+      "timestamp": 1758198067.9603698,
+      "transactions": [
+        {
+          "from_address": "treasury",
+          "to_address": "DNMRe7b1a6be494b6bf217cb2a4485c4a102bc7b508a",
+          "amount": "1000",
+          "fee": "0.1",
+          "data": "Initial distribution to Alice",
+          "nonce": 0,
+          "timestamp": 1758198067.9576273,
+          "signature": ""
+        },
+        {
+          "from_address": "foundation",
+          "to_address": "DNMRd613fa7efabfc50d7601f4c5dac9a07a4df7c3a9",
+          "amount": "500",
+          "fee": "0.1",
+          "data": "Initial distribution to Bob",
+          "nonce": 0,
+          "timestamp": 1758198067.9590037,
+          "signature": ""
+        }
+      ],
+      "previous_hash": "19b6492ccf44bcfd1a43c8b39026d0d8551fdc794d2341c44db3cdc2097b66db",
+      "validator": "validator_alice",
+      "nonce": 0,
+      "hash": "54421a1a29bce27359e6fcef584c3903c8a5c80b3032d4fe2880b7dc03d30079"
+    },
+    {
+      "index": 2,
+      "timestamp": 1758198067.9650366,
+      "transactions": [
+        {
+          "from_address": "DNMRe7b1a6be494b6bf217cb2a4485c4a102bc7b508a",
+          "to_address": "DNMRd613fa7efabfc50d7601f4c5dac9a07a4df7c3a9",
+          "amount": "100",
+          "fee": "0.1",
+          "data": "",
+          "nonce": 1758198067962,
+          "timestamp": 1758198067.9627287,
+          "signature": "DNMR_sig_433ca9703c3d30de486111f28719b46b"
+        }
+      ],
+      "previous_hash": "54421a1a29bce27359e6fcef584c3903c8a5c80b3032d4fe2880b7dc03d30079",
+      "validator": "validator_bob",
+      "nonce": 0,
+      "hash": "661ebf144ae484d18f841df3307e39262de954f31a21add16fa298959f5c9b26"
+    }
+  ],
+  "balances": {
+    "treasury": "498999.9",
+    "foundation": "299499.9",
+    "community": "200000",
+    "DNMRe7b1a6be494b6bf217cb2a4485c4a102bc7b508a": "899.9",
+    "DNMRd613fa7efabfc50d7601f4c5dac9a07a4df7c3a9": "600"
+  },
+  "validators": [
+    "validator_alice",
+    "validator_bob"
+  ],
+  "contracts": {}
+}

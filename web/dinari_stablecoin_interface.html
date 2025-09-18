@@ -1,0 +1,787 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Dinari Stablecoin - African Financial Inclusion</title>
+    <style>
+        * {
+            margin: 0;
+            padding: 0;
+            box-sizing: border-box;
+        }
+
+        body {
+            font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif;
+            background: linear-gradient(135deg, #1e3c72, #2a5298);
+            color: #333;
+            min-height: 100vh;
+        }
+
+        .header {
+            background: rgba(255, 255, 255, 0.1);
+            backdrop-filter: blur(10px);
+            padding: 20px 0;
+            text-align: center;
+            color: white;
+        }
+
+        .header h1 {
+            font-size: 2.5em;
+            margin-bottom: 10px;
+        }
+
+        .header p {
+            font-size: 1.1em;
+            opacity: 0.9;
+        }
+
+        .container {
+            max-width: 1200px;
+            margin: 0 auto;
+            padding: 20px;
+        }
+
+        .dashboard {
+            display: grid;
+            grid-template-columns: repeat(auto-fit, minmax(350px, 1fr));
+            gap: 20px;
+            margin-top: 20px;
+        }
+
+        .card {
+            background: white;
+            border-radius: 12px;
+            padding: 25px;
+            box-shadow: 0 8px 32px rgba(0, 0, 0, 0.1);
+            transition: transform 0.3s ease, box-shadow 0.3s ease;
+        }
+
+        .card:hover {
+            transform: translateY(-5px);
+            box-shadow: 0 12px 40px rgba(0, 0, 0, 0.15);
+        }
+
+        .card h3 {
+            color: #2a5298;
+            margin-bottom: 20px;
+            font-size: 1.3em;
+            display: flex;
+            align-items: center;
+            gap: 10px;
+        }
+
+        .form-group {
+            margin-bottom: 15px;
+        }
+
+        .form-group label {
+            display: block;
+            margin-bottom: 5px;
+            font-weight: 600;
+            color: #555;
+        }
+
+        .form-group input,
+        .form-group select {
+            width: 100%;
+            padding: 12px;
+            border: 2px solid #e0e0e0;
+            border-radius: 8px;
+            font-size: 14px;
+            transition: border-color 0.3s ease;
+        }
+
+        .form-group input:focus,
+        .form-group select:focus {
+            outline: none;
+            border-color: #2a5298;
+        }
+
+        .btn {
+            background: linear-gradient(135deg, #2a5298, #1e3c72);
+            color: white;
+            padding: 12px 24px;
+            border: none;
+            border-radius: 8px;
+            cursor: pointer;
+            font-size: 14px;
+            font-weight: 600;
+            transition: all 0.3s ease;
+            width: 100%;
+        }
+
+        .btn:hover {
+            transform: translateY(-2px);
+            box-shadow: 0 6px 20px rgba(42, 82, 152, 0.3);
+        }
+
+        .btn:active {
+            transform: translateY(0);
+        }
+
+        .result {
+            margin-top: 15px;
+            padding: 12px;
+            border-radius: 8px;
+            font-family: 'Courier New', monospace;
+            font-size: 13px;
+            white-space: pre-wrap;
+            display: none;
+        }
+
+        .result.success {
+            background: #d4edda;
+            color: #155724;
+            border: 1px solid #c3e6cb;
+        }
+
+        .result.error {
+            background: #f8d7da;
+            color: #721c24;
+            border: 1px solid #f5c6cb;
+        }
+
+        .stats-grid {
+            display: grid;
+            grid-template-columns: repeat(auto-fit, minmax(120px, 1fr));
+            gap: 15px;
+            margin-top: 15px;
+        }
+
+        .stat-item {
+            text-align: center;
+            padding: 15px;
+            background: linear-gradient(135deg, #f8f9fa, #e9ecef);
+            border-radius: 8px;
+        }
+
+        .stat-value {
+            font-size: 1.5em;
+            font-weight: bold;
+            color: #2a5298;
+        }
+
+        .stat-label {
+            font-size: 0.9em;
+            color: #666;
+            margin-top: 5px;
+        }
+
+        .mobile-gateways {
+            display: grid;
+            grid-template-columns: repeat(auto-fit, minmax(200px, 1fr));
+            gap: 10px;
+            margin-top: 15px;
+        }
+
+        .gateway {
+            padding: 15px;
+            border: 2px solid #e0e0e0;
+            border-radius: 8px;
+            cursor: pointer;
+            transition: all 0.3s ease;
+        }
+
+        .gateway:hover {
+            border-color: #2a5298;
+            background: #f8f9fa;
+        }
+
+        .gateway.selected {
+            border-color: #2a5298;
+            background: linear-gradient(135deg, #2a5298, #1e3c72);
+            color: white;
+        }
+
+        .loading {
+            display: inline-block;
+            width: 20px;
+            height: 20px;
+            border: 3px solid #f3f3f3;
+            border-top: 3px solid #2a5298;
+            border-radius: 50%;
+            animation: spin 1s linear infinite;
+            margin-right: 10px;
+        }
+
+        @keyframes spin {
+            0% { transform: rotate(0deg); }
+            100% { transform: rotate(360deg); }
+        }
+
+        .flag {
+            font-size: 1.5em;
+            margin-right: 10px;
+        }
+
+        .collateral-assets {
+            display: grid;
+            grid-template-columns: repeat(auto-fit, minmax(150px, 1fr));
+            gap: 10px;
+            margin-top: 15px;
+        }
+
+        .asset {
+            padding: 15px;
+            border: 2px solid #e0e0e0;
+            border-radius: 8px;
+            text-align: center;
+            cursor: pointer;
+            transition: all 0.3s ease;
+        }
+
+        .asset:hover {
+            border-color: #2a5298;
+            background: #f8f9fa;
+        }
+
+        .asset.selected {
+            border-color: #2a5298;
+            background: linear-gradient(135deg, #2a5298, #1e3c72);
+            color: white;
+        }
+
+        .asset-symbol {
+            font-weight: bold;
+            font-size: 1.1em;
+        }
+
+        .asset-price {
+            font-size: 0.9em;
+            opacity: 0.8;
+            margin-top: 5px;
+        }
+
+        @media (max-width: 768px) {
+            .dashboard {
+                grid-template-columns: 1fr;
+            }
+            
+            .header h1 {
+                font-size: 2em;
+            }
+            
+            .container {
+                padding: 10px;
+            }
+        }
+    </style>
+</head>
+<body>
+    <div class="header">
+        <h1>🌍 Dinari Stablecoin</h1>
+        <p>Blockchain-based financial inclusion for Africa</p>
+    </div>
+
+    <div class="container">
+        <div class="dashboard">
+            <!-- Balance Check Card -->
+            <div class="card">
+                <h3>💰 Check Balance</h3>
+                <div class="form-group">
+                    <label for="balance-address">Wallet Address:</label>
+                    <input type="text" id="balance-address" placeholder="Enter wallet address...">
+                </div>
+                <button class="btn" onclick="checkBalance()">Check Balance</button>
+                <div id="balance-result" class="result"></div>
+            </div>
+
+            <!-- Transfer Card -->
+            <div class="card">
+                <h3>💸 Transfer Dinari</h3>
+                <div class="form-group">
+                    <label for="transfer-from">From Address:</label>
+                    <input type="text" id="transfer-from" placeholder="Sender address...">
+                </div>
+                <div class="form-group">
+                    <label for="transfer-to">To Address:</label>
+                    <input type="text" id="transfer-to" placeholder="Recipient address...">
+                </div>
+                <div class="form-group">
+                    <label for="transfer-amount">Amount (DINARI):</label>
+                    <input type="number" id="transfer-amount" placeholder="0.00" step="0.01">
+                </div>
+                <button class="btn" onclick="transferDinari()">Send Transfer</button>
+                <div id="transfer-result" class="result"></div>
+            </div>
+
+            <!-- Collateral Deposit Card -->
+            <div class="card">
+                <h3>🏦 Deposit Collateral</h3>
+                <div class="form-group">
+                    <label for="deposit-address">Your Address:</label>
+                    <input type="text" id="deposit-address" placeholder="Your wallet address...">
+                </div>
+                <div class="form-group">
+                    <label>Select Collateral Asset:</label>
+                    <div class="collateral-assets" id="collateral-assets">
+                        <div class="asset" onclick="selectAsset('USDC')">
+                            <div class="asset-symbol">USDC</div>
+                            <div class="asset-price">$1.00</div>
+                        </div>
+                        <div class="asset" onclick="selectAsset('BTC')">
+                            <div class="asset-symbol">BTC</div>
+                            <div class="asset-price">$43,500</div>
+                        </div>
+                        <div class="asset" onclick="selectAsset('ETH')">
+                            <div class="asset-symbol">ETH</div>
+                            <div class="asset-price">$2,900</div>
+                        </div>
+                        <div class="asset" onclick="selectAsset('GOLD')">
+                            <div class="asset-symbol">GOLD</div>
+                            <div class="asset-price">$2,050</div>
+                        </div>
+                    </div>
+                </div>
+                <div class="form-group">
+                    <label for="deposit-amount">Amount:</label>
+                    <input type="number" id="deposit-amount" placeholder="Amount to deposit..." step="0.001">
+                </div>
+                <button class="btn" onclick="depositCollateral()">Deposit Collateral</button>
+                <div id="deposit-result" class="result"></div>
+            </div>
+
+            <!-- Mint Dinari Card -->
+            <div class="card">
+                <h3>🏭 Mint Dinari</h3>
+                <div class="form-group">
+                    <label for="mint-address">Your Address:</label>
+                    <input type="text" id="mint-address" placeholder="Your wallet address...">
+                </div>
+                <div class="form-group">
+                    <label for="mint-amount">Dinari Amount:</label>
+                    <input type="number" id="mint-amount" placeholder="Amount to mint..." step="0.01">
+                </div>
+                <button class="btn" onclick="mintDinari()">Mint Dinari</button>
+                <div id="mint-result" class="result"></div>
+            </div>
+
+            <!-- Mobile Money Integration Card -->
+            <div class="card">
+                <h3>📱 Mobile Money Deposit</h3>
+                <div class="form-group">
+                    <label for="mobile-address">Your Address:</label>
+                    <input type="text" id="mobile-address" placeholder="Your wallet address...">
+                </div>
+                <div class="form-group">
+                    <label>Select Mobile Gateway:</label>
+                    <div class="mobile-gateways" id="mobile-gateways">
+                        <div class="gateway" onclick="selectGateway('mpesa')">
+                            <div><span class="flag">🇰🇪</span>M-Pesa</div>
+                            <div style="font-size: 0.8em; margin-top: 5px;">Kenya, Tanzania, Ghana</div>
+                        </div>
+                        <div class="gateway" onclick="selectGateway('mtn_money')">
+                            <div><span class="flag">🇺🇬</span>MTN Money</div>
+                            <div style="font-size: 0.8em; margin-top: 5px;">Uganda, Rwanda, Ghana</div>
+                        </div>
+                        <div class="gateway" onclick="selectGateway('orange_money')">
+                            <div><span class="flag">🇸🇳</span>Orange Money</div>
+                            <div style="font-size: 0.8em; margin-top: 5px;">Senegal, Mali, Burkina</div>
+                        </div>
+                        <div class="gateway" onclick="selectGateway('airtel_money')">
+                            <div><span class="flag">🇳🇬</span>Airtel Money</div>
+                            <div style="font-size: 0.8em; margin-top: 5px;">Nigeria, Kenya, Uganda</div>
+                        </div>
+                    </div>
+                </div>
+                <div class="form-group">
+                    <label for="local-amount">Local Amount:</label>
+                    <input type="number" id="local-amount" placeholder="Amount in local currency..." step="0.01">
+                </div>
+                <div class="form-group">
+                    <label for="local-currency">Currency:</label>
+                    <select id="local-currency">
+                        <option value="">Select currency...</option>
+                        <option value="KES">KES - Kenyan Shilling</option>
+                        <option value="NGN">NGN - Nigerian Naira</option>
+                        <option value="GHS">GHS - Ghanaian Cedi</option>
+                        <option value="UGX">UGX - Ugandan Shilling</option>
+                        <option value="TZS">TZS - Tanzanian Shilling</option>
+                        <option value="ZAR">ZAR - South African Rand</option>
+                        <option value="XOF">XOF - West African CFA Franc</option>
+                        <option value="XAF">XAF - Central African CFA Franc</option>
+                    </select>
+                </div>
+                <button class="btn" onclick="mobileMoneyDeposit()">Deposit via Mobile Money</button>
+                <div id="mobile-result" class="result"></div>
+            </div>
+
+            <!-- Remittance Card -->
+            <div class="card">
+                <h3>🌍 Send Remittance</h3>
+                <div class="form-group">
+                    <label for="remit-from">Your Address:</label>
+                    <input type="text" id="remit-from" placeholder="Your wallet address...">
+                </div>
+                <div class="form-group">
+                    <label for="remit-country">Recipient Country:</label>
+                    <select id="remit-country">
+                        <option value="">Select country...</option>
+                        <option value="Kenya">🇰🇪 Kenya</option>
+                        <option value="Nigeria">🇳🇬 Nigeria</option>
+                        <option value="Ghana">🇬🇭 Ghana</option>
+                        <option value="Uganda">🇺🇬 Uganda</option>
+                        <option value="Tanzania">🇹🇿 Tanzania</option>
+                        <option value="South Africa">🇿🇦 South Africa</option>
+                        <option value="Senegal">🇸🇳 Senegal</option>
+                        <option value="Rwanda">🇷🇼 Rwanda</option>
+                    </select>
+                </div>
+                <div class="form-group">
+                    <label for="remit-mobile">Recipient Mobile:</label>
+                    <input type="text" id="remit-mobile" placeholder="+254712345678">
+                </div>
+                <div class="form-group">
+                    <label for="remit-amount">Amount (DINARI):</label>
+                    <input type="number" id="remit-amount" placeholder="Amount to send..." step="0.01">
+                </div>
+                <button class="btn" onclick="sendRemittance()">Send Remittance</button>
+                <div id="remit-result" class="result"></div>
+            </div>
+
+            <!-- Protocol Statistics Card -->
+            <div class="card">
+                <h3>📊 Protocol Statistics</h3>
+                <button class="btn" onclick="loadProtocolStats()">Load Statistics</button>
+                <div id="stats-container"></div>
+                <div id="stats-result" class="result"></div>
+            </div>
+
+            <!-- Vault Information Card -->
+            <div class="card">
+                <h3>🏛️ Vault Information</h3>
+                <div class="form-group">
+                    <label for="vault-address">Address:</label>
+                    <input type="text" id="vault-address" placeholder="Enter address to check vault...">
+                </div>
+                <button class="btn" onclick="getVaultInfo()">Get Vault Info</button>
+                <div id="vault-result" class="result"></div>
+            </div>
+        </div>
+    </div>
+
+    <script>
+        // Global variables
+        let selectedAsset = '';
+        let selectedGateway = '';
+        const RPC_URL = 'http://127.0.0.1:8545/rpc/dinari';
+
+        // Utility functions
+        function showResult(elementId, message, isError = false) {
+            const element = document.getElementById(elementId);
+            element.textContent = message;
+            element.className = `result ${isError ? 'error' : 'success'}`;
+            element.style.display = 'block';
+        }
+
+        function showLoading(elementId) {
+            const element = document.getElementById(elementId);
+            element.innerHTML = '<div class="loading"></div>Loading...';
+            element.className = 'result';
+            element.style.display = 'block';
+        }
+
+        async function makeRPCCall(endpoint, data) {
+            try {
+                const response = await fetch(`${RPC_URL}${endpoint}`, {
+                    method: 'POST',
+                    headers: {
+                        'Content-Type': 'application/json',
+                    },
+                    body: JSON.stringify(data)
+                });
+
+                const result = await response.json();
+                return result;
+            } catch (error) {
+                throw new Error(`Network error: ${error.message}`);
+            }
+        }
+
+        // Asset selection
+        function selectAsset(asset) {
+            document.querySelectorAll('.asset').forEach(el => el.classList.remove('selected'));
+            event.target.closest('.asset').classList.add('selected');
+            selectedAsset = asset;
+        }
+
+        // Gateway selection
+        function selectGateway(gateway) {
+            document.querySelectorAll('.gateway').forEach(el => el.classList.remove('selected'));
+            event.target.closest('.gateway').classList.add('selected');
+            selectedGateway = gateway;
+        }
+
+        // Balance check
+        async function checkBalance() {
+            const address = document.getElementById('balance-address').value.trim();
+            if (!address) {
+                showResult('balance-result', 'Please enter a wallet address', true);
+                return;
+            }
+
+            showLoading('balance-result');
+
+            try {
+                const result = await makeRPCCall('/balance', { address });
+                if (result.error) {
+                    showResult('balance-result', `Error: ${result.error}`, true);
+                } else {
+                    const message = `Balance: ${result.result.balance} DINARI\nAddress: ${result.result.address}`;
+                    showResult('balance-result', message);
+                }
+            } catch (error) {
+                showResult('balance-result', `Error: ${error.message}`, true);
+            }
+        }
+
+        // Transfer Dinari
+        async function transferDinari() {
+            const fromAddress = document.getElementById('transfer-from').value.trim();
+            const toAddress = document.getElementById('transfer-to').value.trim();
+            const amount = document.getElementById('transfer-amount').value;
+
+            if (!fromAddress || !toAddress || !amount) {
+                showResult('transfer-result', 'Please fill in all transfer fields', true);
+                return;
+            }
+
+            showLoading('transfer-result');
+
+            try {
+                const result = await makeRPCCall('/transfer', {
+                    from_address: fromAddress,
+                    to_address: toAddress,
+                    amount: amount
+                });
+
+                if (result.error) {
+                    showResult('transfer-result', `Error: ${result.error}`, true);
+                } else {
+                    const message = `Transfer successful!\nTransaction: ${result.result.transaction_hash}\nAmount: ${result.result.amount} DINARI\nFrom: ${result.result.from}\nTo: ${result.result.to}`;
+                    showResult('transfer-result', message);
+                }
+            } catch (error) {
+                showResult('transfer-result', `Error: ${error.message}`, true);
+            }
+        }
+
+        // Deposit Collateral
+        async function depositCollateral() {
+            const address = document.getElementById('deposit-address').value.trim();
+            const amount = document.getElementById('deposit-amount').value;
+
+            if (!address || !selectedAsset || !amount) {
+                showResult('deposit-result', 'Please fill in all fields and select an asset', true);
+                return;
+            }
+
+            showLoading('deposit-result');
+
+            try {
+                const result = await makeRPCCall('/deposit', {
+                    user_address: address,
+                    asset_symbol: selectedAsset,
+                    amount: amount
+                });
+
+                if (result.error) {
+                    showResult('deposit-result', `Error: ${result.error}`, true);
+                } else {
+                    const vaultInfo = result.result.vault_info;
+                    const message = `Collateral deposited successfully!\nAsset: ${result.result.asset_symbol}\nAmount: ${result.result.amount_deposited}\nCollateral Ratio: ${vaultInfo.collateral_ratio}\nTotal Collateral Value: $${vaultInfo.total_collateral_value_usd}`;
+                    showResult('deposit-result', message);
+                }
+            } catch (error) {
+                showResult('deposit-result', `Error: ${error.message}`, true);
+            }
+        }
+
+        // Mint Dinari
+        async function mintDinari() {
+            const address = document.getElementById('mint-address').value.trim();
+            const amount = document.getElementById('mint-amount').value;
+
+            if (!address || !amount) {
+                showResult('mint-result', 'Please fill in all fields', true);
+                return;
+            }
+
+            showLoading('mint-result');
+
+            try {
+                const result = await makeRPCCall('/mint', {
+                    user_address: address,
+                    dinari_amount: amount
+                });
+
+                if (result.error) {
+                    showResult('mint-result', `Error: ${result.error}`, true);
+                } else {
+                    const message = `Dinari minted successfully!\nAmount: ${result.result.dinari_minted} DINARI\nNew Balance: ${result.result.new_balance} DINARI\nCollateral Ratio: ${result.result.vault_info.collateral_ratio}`;
+                    showResult('mint-result', message);
+                }
+            } catch (error) {
+                showResult('mint-result', `Error: ${error.message}`, true);
+            }
+        }
+
+        // Mobile Money Deposit
+        async function mobileMoneyDeposit() {
+            const address = document.getElementById('mobile-address').value.trim();
+            const localAmount = document.getElementById('local-amount').value;
+            const localCurrency = document.getElementById('local-currency').value;
+
+            if (!address || !selectedGateway || !localAmount || !localCurrency) {
+                showResult('mobile-result', 'Please fill in all fields and select a gateway', true);
+                return;
+            }
+
+            showLoading('mobile-result');
+
+            try {
+                const result = await makeRPCCall('/mobile-deposit', {
+                    user_address: address,
+                    gateway_id: selectedGateway,
+                    local_amount: localAmount,
+                    local_currency: localCurrency
+                });
+
+                if (result.error) {
+                    showResult('mobile-result', `Error: ${result.error}`, true);
+                } else {
+                    const message = `Mobile money deposit successful!\nGateway: ${result.result.gateway}\nLocal Amount: ${result.result.local_amount} ${result.result.local_currency}\nDinari Balance: ${result.result.dinari_balance} DINARI`;
+                    showResult('mobile-result', message);
+                }
+            } catch (error) {
+                showResult('mobile-result', `Error: ${error.message}`, true);
+            }
+        }
+
+        // Send Remittance
+        async function sendRemittance() {
+            const fromAddress = document.getElementById('remit-from').value.trim();
+            const toCountry = document.getElementById('remit-country').value;
+            const recipientMobile = document.getElementById('remit-mobile').value.trim();
+            const amount = document.getElementById('remit-amount').value;
+
+            if (!fromAddress || !toCountry || !recipientMobile || !amount) {
+                showResult('remit-result', 'Please fill in all fields', true);
+                return;
+            }
+
+            showLoading('remit-result');
+
+            try {
+                const result = await makeRPCCall('/remittance', {
+                    from_address: fromAddress,
+                    to_country: toCountry,
+                    recipient_mobile: recipientMobile,
+                    dinari_amount: amount
+                });
+
+                if (result.error) {
+                    showResult('remit-result', `Error: ${result.error}`, true);
+                } else {
+                    const message = `Remittance sent successfully!\nRemittance ID: ${result.result.remittance_id}\nRecipient: ${result.result.recipient_mobile}\nCountry: ${result.result.to_country}\nAmount: ${result.result.dinari_amount} DINARI\nEstimated Delivery: ${result.result.estimated_delivery}`;
+                    showResult('remit-result', message);
+                }
+            } catch (error) {
+                showResult('remit-result', `Error: ${error.message}`, true);
+            }
+        }
+
+        // Load Protocol Statistics
+        async function loadProtocolStats() {
+            showLoading('stats-result');
+
+            try {
+                const response = await fetch(`${RPC_URL}/protocol-stats`);
+                const result = await response.json();
+
+                if (result.error) {
+                    showResult('stats-result', `Error: ${result.error}`, true);
+                } else {
+                    const stats = result.result;
+                    const statsHTML = `
+                        <div class="stats-grid">
+                            <div class="stat-item">
+                                <div class="stat-value">${parseFloat(stats.total_supply).toLocaleString()}</div>
+                                <div class="stat-label">Total Supply (DINARI)</div>
+                            </div>
+                            <div class="stat-item">
+                                <div class="stat-value">$${parseFloat(stats.total_collateral_value).toLocaleString()}</div>
+                                <div class="stat-label">Collateral Value</div>
+                            </div>
+                            <div class="stat-item">
+                                <div class="stat-value">${(parseFloat(stats.stability_fee) * 100).toFixed(1)}%</div>
+                                <div class="stat-label">Stability Fee</div>
+                            </div>
+                            <div class="stat-item">
+                                <div class="stat-value">${stats.supported_collateral_assets.length}</div>
+                                <div class="stat-label">Supported Assets</div>
+                            </div>
+                            <div class="stat-item">
+                                <div class="stat-value">${stats.mobile_money_gateways.length}</div>
+                                <div class="stat-label">Mobile Gateways</div>
+                            </div>
+                            <div class="stat-item">
+                                <div class="stat-value">$${stats.target_price}</div>
+                                <div class="stat-label">Target Price</div>
+                            </div>
+                        </div>
+                    `;
+                    
+                    document.getElementById('stats-container').innerHTML = statsHTML;
+                    document.getElementById('stats-result').style.display = 'none';
+                }
+            } catch (error) {
+                showResult('stats-result', `Error: ${error.message}`, true);
+            }
+        }
+
+        // Get Vault Information
+        async function getVaultInfo() {
+            const address = document.getElementById('vault-address').value.trim();
+            if (!address) {
+                showResult('vault-result', 'Please enter a wallet address', true);
+                return;
+            }
+
+            showLoading('vault-result');
+
+            try {
+                const result = await makeRPCCall('/vault-info', { user_address: address });
+                if (result.error) {
+                    showResult('vault-result', `Error: ${result.error}`, true);
+                } else {
+                    const vault = result.result;
+                    if (vault.error) {
+                        showResult('vault-result', vault.error, true);
+                    } else {
+                        const collateralInfo = Object.entries(vault.collateral_deposits)
+                            .filter(([_, amount]) => parseFloat(amount) > 0)
+                            .map(([asset, amount]) => `${asset}: ${amount}`)
+                            .join('\n');
+                        
+                        const message = `Vault Information:\nAddress: ${vault.user_address}\nCollateral Deposits:\n${collateralInfo}\nTotal Collateral Value: $${vault.total_collateral_value_usd}\nDinari Minted: ${vault.dinari_minted}\nCollateral Ratio: ${vault.collateral_ratio}\nLiquidatable: ${vault.is_liquidatable ? 'Yes' : 'No'}`;
+                        showResult('vault-result', message);
+                    }
+                }
+            } catch (error) {
+                showResult('vault-result', `Error: ${error.message}`, true);
+            }
+        }
+
+        // Initialize the page
+        window.onload = function() {
+            console.log('🌍 Dinari Stablecoin Interface Loaded');
+            console.log('🔗 RPC URL:', RPC_URL);
+            
+            // Load protocol stats by default
+            setTimeout(loadProtocolStats, 1000);
+        };
+    </script>
+</body>
+</html>

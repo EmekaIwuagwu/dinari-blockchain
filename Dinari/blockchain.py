@@ -212,12 +212,11 @@ class DinariBlockchain:
         self.validators: List[str] = self.genesis_config.get('validators', [])
         self.block_time = self.genesis_config.get('block_time', 30)  # seconds
         
-        # Initialize blockchain with genesis block
-        self._create_genesis_block()
-        
         # Setup logging
         logging.basicConfig(level=logging.INFO)
         self.logger = logging.getLogger(__name__)
+        # Initialize blockchain with genesis block
+        self._create_genesis_block()
         
         self.logger.info(f"DinariBlockchain initialized with {len(self.validators)} validators")
     

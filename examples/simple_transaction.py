@@ -49,7 +49,7 @@ def main():
     blockchain = DinariBlockchain(genesis_config)
     print(f"✅ Blockchain created with {len(blockchain.chain)} blocks")
     print(f"   Token: {genesis_config['token_name']} ({genesis_config['token_symbol']})")
-    print(f"   Total Supply: {genesis_config['total_supply']:,} DNMR")
+    print(f"   Total Supply: {int(genesis_config['total_supply']):,} DNMR")
     
     # Display initial balances
     print(f"\n💰 Initial Balances:")

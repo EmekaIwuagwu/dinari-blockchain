@@ -55,9 +55,8 @@ class SafePythonExecutor:
     
     # Prohibited statements and functions
     PROHIBITED_NODES = {
-        ast.Import, ast.ImportFrom,  # No imports
-        ast.Exec, ast.Eval,          # No dynamic execution
-        ast.Global, ast.Nonlocal,    # No global access
+            ast.Import, ast.ImportFrom,  # No imports
+            ast.Global, ast.Nonlocal,    # No global access
     }
     
     def __init__(self):

@@ -55,12 +55,11 @@ class DinariWallet:
         # Ensure wallet directory exists
         os.makedirs(wallet_dir, exist_ok=True)
         
-        # Load existing wallet or create new
-        self._load_or_create_wallet()
-        
         # Setup logging
         self.logger = logging.getLogger(f"DinariWallet-{wallet_name}")
-        
+        # Load existing wallet or create new
+        self._load_or_create_wallet()
+                
         self.logger.info(f"Wallet '{wallet_name}' initialized with {len(self.keys)} addresses")
     
     def _load_or_create_wallet(self):

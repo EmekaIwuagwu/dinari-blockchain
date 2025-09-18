@@ -1,0 +1,35 @@
+{
+  "name": "alice_wallet",
+  "version": "1.0.0",
+  "created_at": 1758198067.953512,
+  "keys": {
+    "DNMRe7b1a6be494b6bf217cb2a4485c4a102bc7b508a": {
+      "private_key": "36be4488b09f12912789373622df0dd2ed0b7970dfbd9d3cb1387bca7ad126d5",
+      "public_key": "60ef6fe46e1f178e3194cbb9a61844fe52ae49b0b0c908032f4c5d236a7a115a",
+      "address": "DNMRe7b1a6be494b6bf217cb2a4485c4a102bc7b508a",
+      "created_at": 1758198067.953512
+    }
+  },
+  "transaction_history": [
+    {
+      "from_address": "treasury",
+      "to_address": "DNMRe7b1a6be494b6bf217cb2a4485c4a102bc7b508a",
+      "amount": "1000",
+      "fee": "0.1",
+      "data": "Initial distribution to Alice",
+      "nonce": 0,
+      "timestamp": 1758198067.9576273,
+      "signature": ""
+    },
+    {
+      "from_address": "DNMRe7b1a6be494b6bf217cb2a4485c4a102bc7b508a",
+      "to_address": "DNMRd613fa7efabfc50d7601f4c5dac9a07a4df7c3a9",
+      "amount": "100",
+      "fee": "0.1",
+      "data": "",
+      "nonce": 1758198067962,
+      "timestamp": 1758198067.9627287,
+      "signature": "DNMR_sig_433ca9703c3d30de486111f28719b46b"
+    }
+  ]
+}
