@@ -1,7 +1,7 @@
 #!/usr/bin/env python3
 """
 DinariBlockchain - API Server
-app.py - Simple Flask API server for Render.com deployment
+app.py - Fixed Flask API server for Render.com deployment
 """
 
 import os
@@ -44,7 +44,6 @@ contract_manager = None
 PORT = int(os.getenv('PORT', 5000))  # Render.com sets PORT
 NODE_ID = os.getenv('NODE_ID', 'api_node')
 P2P_PORT = int(os.getenv('P2P_PORT', 8333))
-GENESIS_FILE = os.getenv('GENESIS_FILE', 'genesis.json')
 
 def initialize_blockchain():
     """Initialize blockchain and node"""
@@ -56,30 +55,31 @@ def initialize_blockchain():
         logger.info(f"   P2P Port: {P2P_PORT}")
         logger.info(f"   API Port: {PORT}")
         
-        # Create blockchain node
+        # Create blockchain instance first
+        blockchain = DinariBlockchain()
+        
+        # Create blockchain node with correct parameters
         blockchain_node = DinariNode(
-            node_id=NODE_ID,
             host="0.0.0.0",
             port=P2P_PORT,
-            genesis_file=GENESIS_FILE,
-            data_dir=os.getenv('DATA_DIR', 'data')
+            node_id=NODE_ID
         )
         
-        # Get blockchain instance
-        blockchain = blockchain_node.blockchain
+        # Set blockchain reference on node
+        if hasattr(blockchain_node, 'set_blockchain'):
+            blockchain_node.set_blockchain(blockchain)
         
         # Create contract manager
         contract_manager = ContractManager(blockchain)
         
         # Start node in background thread
         def start_node():
-            blockchain_node.start()
-            # Try to connect to bootstrap nodes
-            bootstrap_nodes = os.getenv('BOOTSTRAP_NODES', '').split(',')
-            for node_addr in bootstrap_nodes:
-                if node_addr and ':' in node_addr:
-                    host, port = node_addr.split(':')
-                    blockchain_node.network.connect_to_peer(host, int(port))
+            try:
+                if hasattr(blockchain_node, 'start'):
+                    blockchain_node.start()
+                logger.info("✅ Node started successfully")
+            except Exception as e:
+                logger.error(f"Failed to start node: {e}")
         
         # Start node in background
         node_thread = threading.Thread(target=start_node, daemon=True)
@@ -105,25 +105,31 @@ def health_check():
         }
         
         if blockchain:
-            stats = blockchain.get_stats()
-            status.update({
-                'blockchain': {
-                    'height': stats['total_blocks'],
-                    'transactions': stats['total_transactions'],
-                    'pending': stats['pending_transactions'],
-                    'valid': stats['chain_valid']
-                }
-            })
+            try:
+                chain_info = blockchain.get_chain_info()
+                status.update({
+                    'blockchain': {
+                        'height': chain_info.get('height', 0),
+                        'transactions': chain_info.get('total_transactions', 0),
+                        'pending': chain_info.get('pending_transactions', 0),
+                        'contracts': chain_info.get('contracts', 0)
+                    }
+                })
+            except Exception as e:
+                logger.warning(f"Could not get blockchain info: {e}")
         
         if blockchain_node:
-            node_status = blockchain_node.get_node_status()
-            status.update({
-                'network': {
-                    'peers': node_status['peers_connected'],
-                    'running': node_status['running'],
-                    'is_validator': node_status['is_validator']
-                }
-            })
+            try:
+                if hasattr(blockchain_node, 'get_network_info'):
+                    node_info = blockchain_node.get_network_info()
+                    status.update({
+                        'network': {
+                            'connected_peers': node_info.get('connected_peers', 0),
+                            'is_validator': node_info.get('is_validator', False)
+                        }
+                    })
+            except Exception as e:
+                logger.warning(f"Could not get network info: {e}")
         
         return jsonify(status), 200
         
@@ -138,26 +144,19 @@ def blockchain_info():
         if not blockchain:
             return jsonify({'error': 'Blockchain not initialized'}), 503
         
-        stats = blockchain.get_stats()
-        latest_block = blockchain.get_latest_block()
+        chain_info = blockchain.get_chain_info()
         
         info = {
-            'network_id': blockchain.genesis_config.get('network_id', 'unknown'),
-            'token_symbol': blockchain.genesis_config.get('token_symbol', 'DINARI'),
-            'total_supply': blockchain.genesis_config.get('total_supply', '0'),
-            'chain_height': stats['total_blocks'],
-            'total_transactions': stats['total_transactions'],
-            'pending_transactions': stats['pending_transactions'],
-            'validators': len(blockchain.validators),
-            'contracts': stats['total_contracts'],
-            'latest_block': {
-                'index': latest_block.index,
-                'hash': latest_block.hash[:16] + '...',
-                'validator': latest_block.validator,
-                'timestamp': latest_block.timestamp,
-                'tx_count': len(latest_block.transactions)
-            },
-            'chain_valid': stats['chain_valid']
+            'network_id': 'dinari_mainnet',
+            'native_token': 'DINARI',
+            'stablecoin': 'AFC (Afrocoin)',
+            'chain_height': chain_info.get('height', 0),
+            'total_transactions': chain_info.get('total_transactions', 0),
+            'pending_transactions': chain_info.get('pending_transactions', 0),
+            'validators': chain_info.get('validators', 0),
+            'contracts': chain_info.get('contracts', 0),
+            'total_dinari_supply': chain_info.get('total_dinari_supply', '0'),
+            'last_block_hash': chain_info.get('last_block_hash', '')[:16] + '...' if chain_info.get('last_block_hash') else 'None'
         }
         
         return jsonify(info), 200
@@ -172,12 +171,22 @@ def get_balance(address):
         if not blockchain:
             return jsonify({'error': 'Blockchain not initialized'}), 503
         
-        balance = blockchain.get_balance(address)
+        # Get DINARI balance
+        dinari_balance = "0"
+        afc_balance = "0"
+        
+        if hasattr(blockchain, 'get_dinari_balance'):
+            dinari_balance = str(blockchain.get_dinari_balance(address))
+        
+        if hasattr(blockchain, 'get_afrocoin_balance'):
+            afc_balance = str(blockchain.get_afrocoin_balance(address))
         
         return jsonify({
             'address': address,
-            'balance': str(balance),
-            'symbol': blockchain.genesis_config.get('token_symbol', 'DINARI')
+            'balances': {
+                'DINARI': dinari_balance,
+                'AFC': afc_balance
+            }
         }), 200
         
     except Exception as e:
@@ -187,8 +196,8 @@ def get_balance(address):
 def submit_transaction():
     """Submit a new transaction"""
     try:
-        if not blockchain_node:
-            return jsonify({'error': 'Node not initialized'}), 503
+        if not blockchain:
+            return jsonify({'error': 'Blockchain not initialized'}), 503
         
         data = request.get_json()
         
@@ -202,23 +211,20 @@ def submit_transaction():
         tx = Transaction(
             from_address=data['from_address'],
             to_address=data['to_address'],
-            amount=data['amount'],
-            fee=data.get('fee', '0.001'),
+            amount=Decimal(str(data['amount'])),
+            gas_price=Decimal(str(data.get('gas_price', '0.001'))),
+            gas_limit=int(data.get('gas_limit', 21000)),
+            nonce=int(data.get('nonce', 0)),
             data=data.get('data', '')
         )
         
-        # Submit to network
-        success = blockchain_node.submit_transaction(
-            data['from_address'],
-            data['to_address'], 
-            data['amount'],
-            data.get('fee', '0.001')
-        )
+        # Add transaction to blockchain
+        success = blockchain.add_transaction(tx)
         
         if success:
             return jsonify({
                 'success': True,
-                'transaction_hash': tx.calculate_hash(),
+                'transaction_hash': tx.get_hash(),
                 'message': 'Transaction submitted successfully'
             }), 200
         else:
@@ -234,17 +240,15 @@ def get_block(block_index):
         if not blockchain:
             return jsonify({'error': 'Blockchain not initialized'}), 503
         
-        if block_index >= len(blockchain.chain) or block_index < 0:
+        chain_info = blockchain.get_chain_info()
+        if block_index >= chain_info.get('height', 0) or block_index < 0:
             return jsonify({'error': 'Block not found'}), 404
         
-        block = blockchain.chain[block_index]
-        block_data = block.to_dict()
-        
-        # Add additional info
-        block_data['transaction_count'] = len(block.transactions)
-        block_data['size'] = len(json.dumps(block_data))
-        
-        return jsonify(block_data), 200
+        # Try to get block by hash (would need implementation)
+        return jsonify({
+            'message': 'Block retrieval by index not yet implemented',
+            'available_height': chain_info.get('height', 0)
+        }), 501
         
     except Exception as e:
         return jsonify({'error': str(e)}), 500
@@ -258,28 +262,25 @@ def deploy_contract():
         
         data = request.get_json()
         
-        if 'template' in data:
-            # Deploy from template
-            deployment = contract_manager.deploy_from_template(
-                data['template'],
-                data.get('deployer', 'treasury'),
-                data.get('args', [])
-            )
-        elif 'code' in data:
-            # Deploy custom contract
-            contract_address = contract_manager.deploy_contract(
-                data['code'],
-                data.get('deployer', 'treasury'),
-                data.get('args', [])
-            )
-            deployment = type('obj', (object,), {'address': contract_address})
-        else:
-            return jsonify({'error': 'Missing template or code'}), 400
+        required_fields = ['contract_id', 'owner']
+        for field in required_fields:
+            if field not in data:
+                return jsonify({'error': f'Missing field: {field}'}), 400
+        
+        # Deploy contract
+        contract = contract_manager.deploy_contract(
+            contract_id=data['contract_id'],
+            code=data.get('code', 'Default contract code'),
+            owner=data['owner'],
+            contract_type=data.get('contract_type', 'general'),
+            initial_state=data.get('initial_state', {})
+        )
         
         return jsonify({
             'success': True,
-            'contract_address': deployment.address,
-            'deployer': data.get('deployer', 'treasury')
+            'contract_id': data['contract_id'],
+            'owner': data['owner'],
+            'contract_type': data.get('contract_type', 'general')
         }), 200
         
     except Exception as e:
@@ -294,26 +295,58 @@ def call_contract():
         
         data = request.get_json()
         
-        required_fields = ['contract_address', 'function_name', 'caller']
+        required_fields = ['contract_id', 'function_name', 'caller']
         for field in required_fields:
             if field not in data:
                 return jsonify({'error': f'Missing field: {field}'}), 400
         
-        result = contract_manager.call_contract(
-            data['contract_address'],
-            data['function_name'],
-            data.get('args', []),
-            data['caller']
+        function_data = {
+            'function': data['function_name'],
+            'args': data.get('args', {})
+        }
+        
+        result = contract_manager.execute_contract(
+            contract_id=data['contract_id'],
+            function_data=function_data,
+            caller=data['caller'],
+            value=Decimal(str(data.get('value', '0')))
         )
         
         return jsonify({
-            'success': result.success,
-            'result': result.result,
-            'gas_used': result.gas_used,
-            'events': result.events,
-            'error': result.error if not result.success else None
+            'success': result.get('success', False),
+            'result': result.get('result', ''),
+            'gas_used': result.get('gas_used', 0),
+            'error': result.get('error', None)
         }), 200
         
+    except Exception as e:
+        return jsonify({'error': str(e)}), 500
+
+@app.route('/api/contracts/afrocoin', methods=['GET'])
+def afrocoin_info():
+    """Get Afrocoin contract information"""
+    try:
+        if not contract_manager:
+            return jsonify({'error': 'Contract manager not initialized'}), 503
+        
+        afrocoin_contract = contract_manager.get_afrocoin_contract()
+        
+        if afrocoin_contract:
+            return jsonify({
+                'contract_id': 'afrocoin_stablecoin',
+                'name': 'Afrocoin',
+                'symbol': 'AFC',
+                'type': 'stablecoin',
+                'status': 'deployed',
+                'backed_by': 'DINARI',
+                'owner': afrocoin_contract.owner
+            })
+        else:
+            return jsonify({
+                'contract_id': 'afrocoin_stablecoin',
+                'status': 'not_found'
+            })
+            
     except Exception as e:
         return jsonify({'error': str(e)}), 500
 
@@ -321,16 +354,14 @@ def call_contract():
 def create_new_wallet():
     """Create a new wallet"""
     try:
-        data = request.get_json()
+        data = request.get_json() if request.get_json() else {}
         wallet_name = data.get('name', f'wallet_{int(time.time())}')
         
-        wallet = create_wallet(wallet_name)
-        addresses = wallet.get_all_addresses()
+        wallet = create_wallet()
         
         return jsonify({
             'success': True,
             'wallet_name': wallet_name,
-            'addresses': addresses,
             'message': 'Wallet created successfully'
         }), 200
         
@@ -344,22 +375,18 @@ def get_peers():
         if not blockchain_node:
             return jsonify({'error': 'Node not initialized'}), 503
         
-        peers = blockchain_node.network.get_connected_peers()
-        peer_list = []
-        
-        for peer in peers:
-            peer_list.append({
-                'peer_id': peer.peer_id,
-                'address': peer.address,
-                'connected_at': peer.connected_at,
-                'last_seen': peer.last_seen,
-                'is_validator': peer.is_validator
-            })
-        
-        return jsonify({
-            'connected_peers': len(peer_list),
-            'peers': peer_list
-        }), 200
+        if hasattr(blockchain_node, 'get_network_info'):
+            network_info = blockchain_node.get_network_info()
+            return jsonify({
+                'connected_peers': network_info.get('connected_peers', 0),
+                'peers_info': network_info.get('peers_info', [])
+            }), 200
+        else:
+            return jsonify({
+                'connected_peers': 0,
+                'peers_info': [],
+                'message': 'Network info not available'
+            }), 200
         
     except Exception as e:
         return jsonify({'error': str(e)}), 500
@@ -368,18 +395,27 @@ def get_peers():
 def get_stats():
     """Get comprehensive blockchain statistics"""
     try:
-        stats = {}
+        stats = {
+            'timestamp': time.time(),
+            'node_id': NODE_ID
+        }
         
         if blockchain:
-            blockchain_stats = blockchain.get_stats()
-            stats['blockchain'] = blockchain_stats
+            try:
+                chain_info = blockchain.get_chain_info()
+                stats['blockchain'] = chain_info
+            except Exception as e:
+                stats['blockchain'] = {'error': str(e)}
         
         if blockchain_node:
-            node_stats = blockchain_node.get_node_status()
-            stats['node'] = node_stats
-            
-            network_stats = blockchain_node.network.get_network_stats()
-            stats['network'] = network_stats
+            try:
+                if hasattr(blockchain_node, 'get_network_info'):
+                    network_info = blockchain_node.get_network_info()
+                    stats['network'] = network_info
+                else:
+                    stats['network'] = {'message': 'Network info not available'}
+            except Exception as e:
+                stats['network'] = {'error': str(e)}
         
         return jsonify(stats), 200
         
@@ -407,7 +443,7 @@ def index():
     <body>
         <div class="container">
             <h1>🌍 DinariBlockchain API</h1>
-            <p>A blockchain-based stablecoin for Africa</p>
+            <p>Native DINARI token blockchain with Afrocoin stablecoin support</p>
             
             <h2>📊 Status</h2>
             <div id="status" class="status">Loading...</div>
@@ -415,14 +451,19 @@ def index():
             <h2>🔗 API Endpoints</h2>
             <div class="endpoint">GET /health - Health check</div>
             <div class="endpoint">GET /api/blockchain/info - Blockchain information</div>
-            <div class="endpoint">GET /api/blockchain/balance/{address} - Get balance</div>
+            <div class="endpoint">GET /api/blockchain/balance/{address} - Get DINARI & AFC balance</div>
             <div class="endpoint">POST /api/blockchain/transaction - Submit transaction</div>
             <div class="endpoint">GET /api/blockchain/block/{index} - Get block</div>
             <div class="endpoint">POST /api/contracts/deploy - Deploy contract</div>
             <div class="endpoint">POST /api/contracts/call - Call contract</div>
+            <div class="endpoint">GET /api/contracts/afrocoin - Afrocoin contract info</div>
             <div class="endpoint">POST /api/wallet/create - Create wallet</div>
             <div class="endpoint">GET /api/network/peers - Get peers</div>
             <div class="endpoint">GET /api/stats - Get statistics</div>
+            
+            <h2>💰 Token Information</h2>
+            <div class="endpoint">Native Token: DINARI (gas fees, transactions)</div>
+            <div class="endpoint">Stablecoin: AFC (Afrocoin) - USD pegged</div>
             
             <script>
                 fetch('/health')
@@ -431,7 +472,7 @@ def index():
                         const statusEl = document.getElementById('status');
                         if (data.status === 'healthy') {
                             statusEl.className = 'status healthy';
-                            statusEl.innerHTML = `✅ Healthy - Node: ${data.node_id}`;
+                            statusEl.innerHTML = `✅ Healthy - Node: ${data.node_id} | Port: ${data.api_port}`;
                         } else {
                             statusEl.className = 'status unhealthy';
                             statusEl.innerHTML = `❌ Unhealthy - ${data.error || 'Unknown error'}`;
@@ -472,3 +513,9 @@ if __name__ == '__main__':
     except Exception as e:
         logger.error(f"❌ Failed to start API server: {e}")
         raise
+else:
+    # For production deployment (gunicorn)
+    try:
+        initialize_blockchain()
+    except Exception as e:
+        logger.error(f"❌ Failed to initialize for production: {e}")
