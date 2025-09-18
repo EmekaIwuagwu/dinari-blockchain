@@ -286,6 +286,7 @@ __all__ = [
     'create_wallet',
     'create_address',
     'get_afrocoin_contract',
+    'setup_logging',
 ]
 
 # ==========================================
@@ -321,6 +322,16 @@ def create_wallet():
 def create_address(address_string):
     """Create a new Address instance"""
     return Address(address_string)
+
+def setup_logging(level="INFO"):
+    """Setup logging for DinariBlockchain"""
+    import logging
+    numeric_level = getattr(logging, level.upper(), logging.INFO)
+    logging.basicConfig(
+        level=numeric_level,
+        format='%(asctime)s - %(name)s - %(levelname)s - %(message)s'
+    )
+    return logging.getLogger("DinariBlockchain")
 
 # ==========================================
 # INITIALIZATION LOGGING
