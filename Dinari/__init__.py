@@ -69,6 +69,7 @@ __all__ = [
     'Transaction',
     'SmartContract',
     'ContractState',
+    'ContractManager',
     
     # Consensus
     'DelegatedProofOfStake',
@@ -100,3 +101,7 @@ def create_node(host: str = "127.0.0.1", port: int = 8333, node_id: str = None):
 def get_afrocoin_contract(blockchain: DinariBlockchain):
     """Get the Afrocoin stablecoin contract"""
     return blockchain.get_afrocoin_contract()
+
+def create_contract_manager(blockchain: DinariBlockchain = None):
+    """Create a new ContractManager instance"""
+    return ContractManager(blockchain)
