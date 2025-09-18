@@ -240,7 +240,7 @@ __author__ = "Dinari Development Team"
 __description__ = "DinariBlockchain - African Blockchain for Financial Inclusion with DINARI token and Afrocoin stablecoin"
 
 # ==========================================
-# EXPORT ALL CLASSES
+# EXPORT ALL CLASSES AND FUNCTIONS
 # ==========================================
 
 __all__ = [
@@ -277,6 +277,15 @@ __all__ = [
     'TransactionPool',
     'MiningEngine',
     'AfrocoinStablecoin',
+    
+    # Convenience functions
+    'create_blockchain',
+    'create_node',
+    'create_contract_manager',
+    'create_rpc_server',
+    'create_wallet',
+    'create_address',
+    'get_afrocoin_contract',
 ]
 
 # ==========================================
@@ -304,6 +313,14 @@ def get_afrocoin_contract(blockchain):
 def create_rpc_server(blockchain=None, host="127.0.0.1", port=8545):
     """Create a new RPC server instance"""
     return DinariRPC(blockchain, host, port)
+
+def create_wallet():
+    """Create a new Wallet instance"""
+    return Wallet()
+
+def create_address(address_string):
+    """Create a new Address instance"""
+    return Address(address_string)
 
 # ==========================================
 # INITIALIZATION LOGGING
