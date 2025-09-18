@@ -45,8 +45,8 @@ DinariBlockchain is a complete blockchain implementation built in Python, specif
 
 ```bash
 # Clone the repository
-git clone https://github.com/Dinari/blockchain.git
-cd Dinari-blockchain
+git clone https://github.com/EmekaIwuagwu/dinari-blockchain.git
+cd dinari-blockchain
 
 # Install dependencies
 pip install -r requirements.txt
