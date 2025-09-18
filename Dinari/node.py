@@ -10,7 +10,7 @@ import time
 from typing import Dict, List, Optional, Any
 from .blockchain import DinariBlockchain, Transaction, Block
 from .consensus import ProofOfAuthority
-from .network import P2PServer
+from .network import P2PNetworkManager
 from .database import DinariLevelDB
 
 class DinariNode:
@@ -34,7 +34,7 @@ class DinariNode:
         # Initialize components
         self.blockchain = DinariBlockchain(db_path)
         self.consensus = ProofOfAuthority()
-        self.p2p = P2PServer(self, host, port)
+        self.network = P2PNetworkManager(self.node_id, host, port)
         
         # Node state (also stored in LevelDB)
         self.db = self.blockchain.db  # Reuse blockchain's LevelDB instance

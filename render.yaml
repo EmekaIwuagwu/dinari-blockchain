@@ -3,7 +3,7 @@ services:
   # Main Web Service
   - type: web
     name: dinari-testnet-api
-    env: python3
+    env: python
     repo: https://github.com/EmekaIwuagwu/dinari-blockchain.git
     branch: main
     buildCommand: pip install -r requirements.txt

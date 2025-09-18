@@ -272,6 +272,13 @@ class DinariRPCServer:
         to_address = params[1]
         amount = params[2]
         fee = params[3] if len(params) > 3 else "0.001"
+
+        if not self._validate_address(from_address):
+            raise Exception("Invalid from_address")
+        if not self._validate_address(to_address):
+            raise Exception("Invalid to_address")  
+        if not self._validate_amount(amount):
+            raise Exception("Invalid amount")
         
         tx = Transaction(from_address, to_address, amount, fee)
         
@@ -332,6 +339,22 @@ class DinariRPCServer:
             'gas_used': result.gas_used,
             'error': result.error if not result.success else None
         }
+    
+    def _validate_address(self, address: str) -> bool:
+    """Validate Dinari address format"""
+    if not address or not isinstance(address, str):
+        return False
+    if not address.startswith('DNMR') and address not in ['treasury', 'genesis']:
+        return False
+    return True
+
+    def _validate_amount(self, amount: str) -> bool:
+    """Validate amount format"""
+    try:
+        value = float(amount)
+        return 0 < value <= 1e18
+    except (ValueError, TypeError):
+        return False
     
     def _get_contract_info(self, params: List) -> Dict[str, Any]:
         if not self.contract_manager or len(params) < 1:

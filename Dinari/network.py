@@ -58,17 +58,26 @@ class NetworkMessage:
         msg_dict = {
             'message_type': self.message_type.value,
             'sender_id': self.sender_id,
-            'data': self.data,
+            'data': self._safe_serialize(self.data),
             'timestamp': self.timestamp,
             'message_id': self.message_id
         }
-        return pickle.dumps(msg_dict)
+        return json.dumps(msg_dict).encode('utf-8')
+    
+        def _safe_serialize(self, data):
+        """Safely serialize data (only basic types)"""
+        if isinstance(data, (dict, list, str, int, float, bool, type(None))):
+            return data
+        elif hasattr(data, 'to_dict'):
+            return data.to_dict()
+        else:
+            return str(data)  # Convert unknown types to string
     
     @classmethod
     def from_bytes(cls, data: bytes) -> 'NetworkMessage':
         """Deserialize message from network data"""
         try:
-            msg_dict = pickle.loads(data)
+            msg_dict = json.loads(data.decode('utf-8'))
             return cls(
                 message_type=MessageType(msg_dict['message_type']),
                 sender_id=msg_dict['sender_id'],
@@ -76,7 +85,7 @@ class NetworkMessage:
                 timestamp=msg_dict.get('timestamp'),
                 message_id=msg_dict.get('message_id')
             )
-        except Exception as e:
+        except (json.JSONDecodeError, KeyError, ValueError) as e:
             raise ValueError(f"Invalid message format: {e}")
 
 @dataclass
