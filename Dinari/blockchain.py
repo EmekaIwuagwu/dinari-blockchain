@@ -2,7 +2,7 @@
 DinariBlockchain with LevelDB Storage & Smart Contracts
 File: dinari/blockchain.py
 Native DINARI token blockchain with Afrocoin stablecoin support
-FIXED: Auto block mining, transaction processing, balance persistence
+FIXED: Auto block mining, transaction processing, balance persistence, validator management
 """
 
 import hashlib
@@ -527,7 +527,7 @@ class DinariBlockchain:
     """
     DinariBlockchain - Native DINARI token blockchain
     Supports smart contracts including Afrocoin stablecoin
-    FIXED: Auto-mining, transaction processing, balance persistence
+    FIXED: Auto-mining, transaction processing, balance persistence, validator management
     """
     
     def __init__(self, db_path: str = "./dinari_data"):
@@ -546,12 +546,42 @@ class DinariBlockchain:
         # Mining control
         self.mining_active = False
         self.mining_thread = None
+        self.last_block_time = time.time()  # Track last block creation
         
         # Initialize genesis block if needed
         if self.chain_state["height"] == 0:
             self._create_genesis_block()
-            
+        
+        # CRITICAL FIX: Ensure we have validators and start mining
+        self._ensure_validators()
+        self.start_automatic_mining(15)  # Start mining with 15 second intervals
+        
         self.logger.info(f"DinariBlockchain initialized with {len(self.validators)} validators")
+        self.logger.info(f"🚀 Automatic mining: {'ACTIVE' if self.mining_active else 'INACTIVE'}")
+    
+    def _ensure_validators(self):
+        """Ensure we have at least one validator for block production"""
+        if len(self.validators) == 0:
+            # Create default validators with DT addresses
+            default_validators = [
+                "DTvalidator1a2b3c4d5e6f7g8h9i0j1k2l3m4n5o6p7q8",
+                "DTvalidator2b3c4d5e6f7g8h9i0j1k2l3m4n5o6p7q8r9",
+                "DTvalidator3c4d5e6f7g8h9i0j1k2l3m4n5o6p7q8r9s0"
+            ]
+            
+            for validator in default_validators:
+                self.add_validator(validator)
+            
+            self.logger.info(f"✅ Created {len(default_validators)} default validators for block production")
+        
+        # Ensure validators have some DINARI for gas fees
+        for validator in self.validators:
+            if validator not in self.dinari_balances or Decimal(self.dinari_balances[validator]) < Decimal("1000"):
+                self.dinari_balances[validator] = "10000"  # Give validators 10,000 DINARI
+                self.logger.info(f"💰 Allocated 10,000 DINARI to validator {validator[:20]}...")
+        
+        self._save_balances()
+        self._save_validators()
     
     def start_automatic_mining(self, interval: int = 15):
         """Start automatic block mining every interval seconds"""
@@ -562,21 +592,56 @@ class DinariBlockchain:
         self.mining_active = True
         
         def mine_blocks():
-            self.logger.info(f"Started automatic mining with {interval}s interval")
+            self.logger.info(f"🏭 Started automatic mining with {interval}s interval")
+            consecutive_errors = 0
+            
             while self.mining_active:
                 try:
-                    if self.pending_transactions:
-                        # Create block with pending transactions
-                        block = self.create_block("auto_miner")
+                    time_since_last_block = time.time() - self.last_block_time
+                    
+                    # Create block if:
+                    # 1. We have pending transactions, OR
+                    # 2. Enough time has passed since last block (maintain chain progression)
+                    should_create_block = (
+                        len(self.pending_transactions) > 0 or 
+                        time_since_last_block >= interval
+                    )
+                    
+                    if should_create_block and self.validators:
+                        # Select validator (simple round-robin)
+                        validator_index = self.chain_state["height"] % len(self.validators)
+                        selected_validator = self.validators[validator_index]
+                        
+                        # Create block
+                        block = self.create_block(selected_validator)
                         if block:
-                            self.logger.info(f"✅ Auto-mined block {block.index} with {len(block.transactions)} txs")
+                            consecutive_errors = 0  # Reset error counter on success
+                            self.logger.info(f"✅ Auto-mined block {block.index}")
+                            if block.transactions:
+                                self.logger.info(f"   📊 Processed {len(block.transactions)} transactions")
+                        else:
+                            self.logger.debug("No block created this cycle")
+                    else:
+                        if not self.validators:
+                            self.logger.warning("No validators available for mining")
+                            self._ensure_validators()  # Try to create validators
                     
                     # Wait for next mining cycle
                     time.sleep(interval)
                     
                 except Exception as e:
-                    self.logger.error(f"Mining error: {e}")
+                    consecutive_errors += 1
+                    self.logger.error(f"Mining error ({consecutive_errors}): {e}")
+                    
+                    # If too many consecutive errors, try to recover
+                    if consecutive_errors >= 3:
+                        self.logger.warning("Too many mining errors, attempting recovery...")
+                        self._ensure_validators()
+                        consecutive_errors = 0
+                    
                     time.sleep(5)  # Wait before retrying
+            
+            self.logger.info("🛑 Automatic mining stopped")
         
         self.mining_thread = threading.Thread(target=mine_blocks, daemon=True)
         self.mining_thread.start()
@@ -793,22 +858,33 @@ class DinariBlockchain:
     def create_block(self, validator_address: str) -> Optional[Block]:
         """Create new block with pending transactions - FIXED VERSION"""
         try:
-            if not self.pending_transactions:
-                self.logger.debug("No pending transactions to mine")
-                return None
+            # Select validator if not provided or invalid
+            if not validator_address or validator_address not in self.validators:
+                if self.validators:
+                    validator_address = self.validators[0]  # Use first available validator
+                else:
+                    self.logger.error("No validators available for block production")
+                    return None
+            
+            # Create block even with no transactions to maintain chain progression
+            transactions_to_include = self.pending_transactions.copy() if self.pending_transactions else []
             
             new_block = Block(
                 index=self.chain_state["height"],
-                transactions=self.pending_transactions.copy(),
+                transactions=transactions_to_include,
                 timestamp=int(time.time()),
                 previous_hash=self.chain_state["last_block_hash"],
                 validator=validator_address
             )
             
-            self.logger.info(f"🔨 Creating block {new_block.index} with {len(new_block.transactions)} transactions")
+            block_type = "with transactions" if transactions_to_include else "empty"
+            self.logger.info(f"🔨 Creating block {new_block.index} ({block_type}) - Validator: {validator_address[:16]}...")
             
             # Process transactions with enhanced logging
-            total_gas_used = self._process_transactions_fixed(new_block.transactions)
+            total_gas_used = 0
+            if transactions_to_include:
+                total_gas_used = self._process_transactions_fixed(transactions_to_include)
+            
             new_block.gas_used = total_gas_used
             
             # Store block
@@ -818,19 +894,24 @@ class DinariBlockchain:
             # Update chain state
             self.chain_state["height"] += 1
             self.chain_state["last_block_hash"] = block_hash
-            self.chain_state["total_transactions"] += len(new_block.transactions)
+            self.chain_state["total_transactions"] += len(transactions_to_include)
             self.chain_state["total_dinari_supply"] = str(sum(Decimal(balance) for balance in self.dinari_balances.values()))
             
-            # Clear pending transactions
-            self.pending_transactions = []
+            # Clear processed transactions
+            if transactions_to_include:
+                self.pending_transactions = []
             
             # CRITICAL: Save all state changes
             self._save_chain_state()
             self._save_balances()
             self._save_contracts()
             
+            # Update last block time for mining
+            self.last_block_time = time.time()
+            
             self.logger.info(f"✅ Block {new_block.index} mined successfully")
             self.logger.info(f"   Block hash: {block_hash[:16]}...")
+            self.logger.info(f"   Transactions: {len(transactions_to_include)}")
             self.logger.info(f"   Gas used: {total_gas_used}")
             self.logger.info(f"   New chain height: {self.chain_state['height']}")
             

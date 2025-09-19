@@ -46,7 +46,21 @@ contract_manager = None
 # Configuration
 PORT = int(os.getenv('PORT', 5000))  # Render.com sets PORT
 NODE_ID = os.getenv('NODE_ID', 'api_node')
-P2P_PORT = int(os.getenv('P2P_PORT', 8333))
+
+# Find available P2P port to avoid conflicts
+def find_available_port(start_port: int = 8333) -> int:
+    """Find an available port starting from start_port"""
+    import socket
+    for port in range(start_port, start_port + 100):
+        try:
+            with socket.socket(socket.AF_INET, socket.SOCK_STREAM) as s:
+                s.bind(('localhost', port))
+                return port
+        except OSError:
+            continue
+    return start_port  # Fallback to original port
+
+P2P_PORT = find_available_port(int(os.getenv('P2P_PORT', 8333)))
 
 class DinariAddress:
     """
@@ -144,37 +158,46 @@ def initialize_blockchain():
         logger.info(f"   API Port: {PORT}")
         logger.info(f"   Address Format: DT-prefixed addresses")
         
-        # Create blockchain instance first
+        # Create blockchain instance first (auto-starts mining and validators)
         blockchain = DinariBlockchain()
-        
-        # Create blockchain node with correct parameters
-        blockchain_node = DinariNode(
-            host="0.0.0.0",
-            port=P2P_PORT,
-            node_id=NODE_ID
-        )
-        
-        # Set blockchain reference on node
-        if hasattr(blockchain_node, 'set_blockchain'):
-            blockchain_node.set_blockchain(blockchain)
         
         # Create contract manager
         contract_manager = ContractManager(blockchain)
         
-        # Start node in background thread
-        def start_node():
-            try:
-                if hasattr(blockchain_node, 'start'):
-                    blockchain_node.start()
-                logger.info("✅ Node started successfully")
-            except Exception as e:
-                logger.error(f"Failed to start node: {e}")
-        
-        # Start node in background
-        node_thread = threading.Thread(target=start_node, daemon=True)
-        node_thread.start()
+        # Try to initialize P2P node (but don't fail if port is busy)
+        try:
+            blockchain_node = DinariNode(
+                host="0.0.0.0",
+                port=P2P_PORT,
+                node_id=NODE_ID
+            )
+            
+            # Set blockchain reference on node
+            if hasattr(blockchain_node, 'set_blockchain'):
+                blockchain_node.set_blockchain(blockchain)
+            
+            # Start node in background thread
+            def start_node():
+                try:
+                    if hasattr(blockchain_node, 'start'):
+                        blockchain_node.start()
+                    logger.info("✅ P2P Node started successfully")
+                except Exception as e:
+                    logger.warning(f"P2P Node failed to start (non-critical): {e}")
+                    logger.info("⚠️  API will work without P2P networking")
+            
+            # Start node in background
+            node_thread = threading.Thread(target=start_node, daemon=True)
+            node_thread.start()
+            
+        except Exception as e:
+            logger.warning(f"P2P Node initialization failed (non-critical): {e}")
+            logger.info("⚠️  Continuing with API-only mode")
+            blockchain_node = None
         
         logger.info("✅ Blockchain initialized successfully")
+        logger.info(f"⚡ Automatic mining: {'ACTIVE' if blockchain.mining_active else 'INACTIVE'}")
+        logger.info(f"👥 Validators: {len(blockchain.validators)}")
         
     except Exception as e:
         logger.error(f"❌ Failed to initialize blockchain: {e}")
@@ -218,8 +241,31 @@ def health_check():
                             'is_validator': node_info.get('is_validator', False)
                         }
                     })
+                else:
+                    status.update({
+                        'network': {
+                            'connected_peers': 0,
+                            'is_validator': False,
+                            'status': 'P2P disabled'
+                        }
+                    })
             except Exception as e:
                 logger.warning(f"Could not get network info: {e}")
+                status.update({
+                    'network': {
+                        'connected_peers': 0,
+                        'is_validator': False,
+                        'status': 'P2P error'
+                    }
+                })
+        else:
+            status.update({
+                'network': {
+                    'connected_peers': 0,
+                    'is_validator': False,
+                    'status': 'P2P not initialized'
+                }
+            })
         
         return jsonify(status), 200
         
@@ -647,7 +693,8 @@ def rpc_handler():
                         "is_validator": network_info.get('is_validator', False),
                         "p2p_port": P2P_PORT,
                         "api_port": PORT,
-                        "address_format": "DT-prefixed"
+                        "address_format": "DT-prefixed",
+                        "p2p_status": "active"
                     }
                 else:
                     result = {
@@ -656,7 +703,8 @@ def rpc_handler():
                         "is_validator": False,
                         "p2p_port": P2P_PORT,
                         "api_port": PORT,
-                        "address_format": "DT-prefixed"
+                        "address_format": "DT-prefixed",
+                        "p2p_status": "disabled"
                     }
                     
             elif method == 'dinari_getValidators':
@@ -840,7 +888,11 @@ def get_peers():
     """Get connected peers"""
     try:
         if not blockchain_node:
-            return jsonify({'error': 'Node not initialized'}), 503
+            return jsonify({
+                'connected_peers': 0,
+                'peers_info': [],
+                'message': 'P2P networking not available'
+            }), 200
         
         if hasattr(blockchain_node, 'get_network_info'):
             network_info = blockchain_node.get_network_info()
@@ -889,6 +941,8 @@ def get_stats():
                     stats['network'] = {'message': 'Network info not available'}
             except Exception as e:
                 stats['network'] = {'error': str(e)}
+        else:
+            stats['network'] = {'message': 'P2P networking not initialized'}
         
         return jsonify(stats), 200
         
@@ -949,6 +1003,8 @@ def index():
             <div class="endpoint">Native Token: DINARI (gas fees, transactions)</div>
             <div class="endpoint">Stablecoin: AFC (Afrocoin) - USD pegged</div>
             <div class="endpoint">Address Format: DT-prefixed (42 characters)</div>
+            <div class="endpoint">⚡ Auto-Mining: Active (15 second intervals)</div>
+            <div class="endpoint">👥 Validators: Auto-created DT addresses</div>
             
             <h2>🔧 JSON-RPC Methods</h2>
             <div class="endpoint">dinari_createWallet - Create new wallet with DT address</div>
@@ -967,7 +1023,17 @@ def index():
                         const statusEl = document.getElementById('status');
                         if (data.status === 'healthy') {
                             statusEl.className = 'status healthy';
-                            statusEl.innerHTML = `✅ Healthy - Node: ${data.node_id} | Port: ${data.api_port} | Address: ${data.address_format}`;
+                            let statusText = `✅ Healthy - Node: ${data.node_id} | Port: ${data.api_port} | Address: ${data.address_format}`;
+                            
+                            if (data.blockchain) {
+                                statusText += ` | Height: ${data.blockchain.height} | Validators: ${data.blockchain.validators || 0}`;
+                            }
+                            
+                            if (data.network && data.network.status) {
+                                statusText += ` | P2P: ${data.network.status}`;
+                            }
+                            
+                            statusEl.innerHTML = statusText;
                         } else {
                             statusEl.className = 'status unhealthy';
                             statusEl.innerHTML = `❌ Unhealthy - ${data.error || 'Unknown error'}`;
