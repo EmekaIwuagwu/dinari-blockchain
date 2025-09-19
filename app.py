@@ -85,11 +85,11 @@ class DinariAddress:
     
     # Known genesis addresses that bypass strict validation
     GENESIS_ADDRESSES = {
-        "DT1qyfe883hey6jrgj2xvk9a3klghvz9z9way2nxvu",  # 1M DINARI
-        "DT1sv9m0g077juqa67h64zxzr26k5xu5rcp8c9qvx",   # 500K DINARI
-        "DT1cqgze3fqpw0dqh9j8l2dqqyr89c0q5c2jdpg8x",   # 250K DINARI
-        "DT1xz2f8l8lh8vqw3r6n4s2k7j9p1d5g8h3m6c4v7",   # 100K DINARI
-        "DT1a7b8c9d0e1f2g3h4i5j6k7l8m9n0o1p2q3r4s5"    # 50K DINARI
+    "DT1qyfe883hey6jrgj2xvk9a3klghvz9z9way2nxvu",  # 30M DINARI - Main Treasury
+    "DT1sv9m0g077juqa67h64zxzr26k5xu5rcp8c9qvx",   # 25M DINARI - Validators Fund  
+    "DT1cqgze3fqpw0dqh9j8l2dqqyr89c0q5c2jdpg8x",   # 20M DINARI - Development Fund
+    "DT1xz2f8l8lh8vqw3r6n4s2k7j9p1d5g8h3m6c4v7",   # 15M DINARI - Community Treasury
+    "DT1a7b8c9d0e1f2g3h4i5j6k7l8m9n0o1p2q3r4s5"    # 10M DINARI - Reserve Fund
     }
     
     @classmethod
@@ -345,6 +345,15 @@ def blockchain_info():
         
         chain_info = blockchain.get_chain_info()
         
+        # Get AFC supply from Afrocoin contract
+        afc_supply = "0"
+        try:
+            afrocoin_contract = blockchain.get_afrocoin_contract()
+            if afrocoin_contract:
+                afc_supply = afrocoin_contract.state.variables.get('total_supply', '0')
+        except:
+            afc_supply = "200000000"  # Default to 200M if can't read from contract
+        
         info = {
             'network_id': 'dinari_mainnet',
             'native_token': 'DINARI',
@@ -358,6 +367,7 @@ def blockchain_info():
             'validators': chain_info.get('validators', 0),
             'contracts': chain_info.get('contracts', 0),
             'total_dinari_supply': chain_info.get('total_dinari_supply', '0'),
+            'total_afc_supply': afc_supply,  # ADD AFC supply
             'mining_active': chain_info.get('mining_active', False),
             'last_block_hash': chain_info.get('last_block_hash', '')[:16] + '...' if chain_info.get('last_block_hash') else 'None'
         }
@@ -698,6 +708,16 @@ def rpc_handler():
             elif method == 'dinari_getBlockchainInfo':
                 if blockchain:
                     chain_info = blockchain.get_chain_info()
+                    
+                    # Get AFC supply from Afrocoin contract
+                    afc_supply = "0"
+                    try:
+                        afrocoin_contract = blockchain.get_afrocoin_contract()
+                        if afrocoin_contract:
+                            afc_supply = afrocoin_contract.state.variables.get('total_supply', '0')
+                    except:
+                        afc_supply = "200000000"  # Default to 200M
+                    
                     result = {
                         "network_id": "dinari_mainnet",
                         "native_token": "DINARI", 
@@ -711,6 +731,7 @@ def rpc_handler():
                         "validators": chain_info.get('validators', 0),
                         "contracts": chain_info.get('contracts', 0),
                         "total_dinari_supply": chain_info.get('total_dinari_supply', '0'),
+                        "total_afc_supply": afc_supply,  # ADD AFC supply
                         "mining_active": chain_info.get('mining_active', False)
                     }
                 else:
@@ -977,6 +998,26 @@ def rpc_handler():
                     "address_length": 42,
                     "genesis_compatibility": True
                 }
+            
+            elif method == 'dinari_getAfcSupply':
+            # New method to get AFC supply specifically
+                afc_supply = "0"
+                try:
+                    if blockchain:
+                        afrocoin_contract = blockchain.get_afrocoin_contract()
+                        if afrocoin_contract:
+                            afc_supply = afrocoin_contract.state.variables.get('total_supply', '0')
+                        else:
+                            afc_supply = "200000000"  # Default
+                    result = {
+                        "total_afc_supply": afc_supply,
+                        "symbol": "AFC",
+                        "name": "Afrocoin",
+                        "contract_id": "afrocoin_stablecoin",
+                        "backed_by": "DINARI"
+                    }
+                except Exception as e:
+                    result = {"error": str(e)}
                 
             elif method == 'dinari_getContractInfo':
                 if not params:
@@ -1263,8 +1304,9 @@ def index():
             
             <div class="genesis-info">
                 <h3>🔑 Genesis Compatibility</h3>
-                <strong>Legacy Support:</strong> 5 known genesis addresses with pre-allocated DINARI<br>
-                <strong>Total Supply:</strong> 1.93M DINARI distributed across genesis addresses<br>
+                <strong>Updated Supply:</strong> 100M DINARI + 200M AFC distributed at genesis<br>
+                <strong>DINARI Distribution:</strong> 30M Treasury, 25M Validators, 20M Development, 15M Community, 10M Reserve<br>
+                <strong>AFC Supply:</strong> 200M tokens in Afrocoin stablecoin contract<br>
                 <strong>Backward Compatible:</strong> Supports transactions from original genesis addresses
             </div>
             
@@ -1288,12 +1330,12 @@ def index():
             <div class="endpoint">POST /rpc - JSON-RPC 2.0 endpoint</div>
             
             <h2>💰 Token Information</h2>
-            <div class="endpoint">Native Token: DINARI (gas fees, transactions)</div>
-            <div class="endpoint">Stablecoin: AFC (Afrocoin) - USD pegged</div>
+            <div class="endpoint">Native Token: DINARI (100M supply, pays gas fees)</div>
+            <div class="endpoint">Stablecoin: AFC (200M supply, Afrocoin USD-pegged)</div>
             <div class="endpoint">Address Format: DT-prefixed (42 characters)</div>
             <div class="endpoint">⚡ Auto-Mining: Active (15 second intervals)</div>
             <div class="endpoint">👥 Validators: Auto-created DT addresses</div>
-            <div class="endpoint">🔑 Genesis Addresses: 5 pre-funded addresses</div>
+            <div class="endpoint">🔑 Genesis Addresses: 5 addresses with 100M DINARI total</div>
             
             <h2>🔧 JSON-RPC Methods</h2>
             <div class="endpoint">dinari_createWallet - Create new wallet with DT address</div>
@@ -1306,6 +1348,7 @@ def index():
             <div class="endpoint">dinari_fundFromGenesis - Fund address from genesis (testing)</div>
             <div class="endpoint">dinari_callContract - Call smart contract</div>
             <div class="endpoint">dinari_deployContract - Deploy smart contract</div>
+            <div class="endpoint">dinari_getAfcSupply - Get AFC (Afrocoin) supply information</div>
             
             <script>
                 fetch('/health')

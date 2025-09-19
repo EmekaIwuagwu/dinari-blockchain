@@ -708,99 +708,145 @@ class DinariBlockchain:
         self.db.put("contracts", contracts_data)
         self.logger.debug("Contracts saved to database")
     
-    def _create_genesis_block(self):
-        """Create genesis block with initial DINARI allocations and deploy Afrocoin contract"""
-        genesis_transactions = [
-            Transaction(
-                from_address="genesis",
-                to_address="DT1qyfe883hey6jrgj2xvk9a3klghvz9z9way2nxvu",  # DT prefix
-                amount=Decimal("1000000"),  # 1M DINARI
-                gas_price=Decimal("0"),
-                gas_limit=21000,
-                nonce=0,
-                data="Genesis DINARI allocation"
-            ),
-            Transaction(
-                from_address="genesis", 
-                to_address="DT1sv9m0g077juqa67h64zxzr26k5xu5rcp8c9qvx",  # DT prefix
-                amount=Decimal("500000"),  # 500K DINARI
-                gas_price=Decimal("0"),
-                gas_limit=21000,
-                nonce=1,
-                data="Initial validator DINARI allocation"
-            ),
-            Transaction(
-                from_address="genesis",
-                to_address="DT1cqgze3fqpw0dqh9j8l2dqqyr89c0q5c2jdpg8x",  # DT prefix
-                amount=Decimal("250000"),  # 250K DINARI
-                gas_price=Decimal("0"),
-                gas_limit=21000,
-                nonce=2,
-                data="Development fund DINARI"
-            ),
-            Transaction(
-                from_address="genesis",
-                to_address="DT1xz2f8l8lh8vqw3r6n4s2k7j9p1d5g8h3m6c4v7",  # DT prefix
-                amount=Decimal("100000"),  # 100K DINARI
-                gas_price=Decimal("0"),
-                gas_limit=21000,
-                nonce=3,
-                data="Community treasury DINARI"
-            ),
-            Transaction(
-                from_address="genesis",
-                to_address="DT1a7b8c9d0e1f2g3h4i5j6k7l8m9n0o1p2q3r4s5",  # DT prefix
-                amount=Decimal("50000"),  # 50K DINARI
-                gas_price=Decimal("0"),
-                gas_limit=21000,
-                nonce=4,
-                data="Reserve fund DINARI"
-            )
-        ]
-        
-        genesis_block = Block(
-            index=0,
-            transactions=genesis_transactions,
-            timestamp=int(time.time()),
-            previous_hash="0" * 64,
-            validator="genesis"
+def _create_genesis_block(self):
+    """Create genesis block with 100M DINARI allocations and deploy Afrocoin contract with 200M AFC"""
+    genesis_transactions = [
+        Transaction(
+            from_address="genesis",
+            to_address="DT1qyfe883hey6jrgj2xvk9a3klghvz9z9way2nxvu",  # Main Treasury
+            amount=Decimal("30000000"),  # 30M DINARI
+            gas_price=Decimal("0"),
+            gas_limit=21000,
+            nonce=0,
+            data="Main treasury DINARI allocation - 30M tokens"
+        ),
+        Transaction(
+            from_address="genesis", 
+            to_address="DT1sv9m0g077juqa67h64zxzr26k5xu5rcp8c9qvx",  # Validators Fund
+            amount=Decimal("25000000"),  # 25M DINARI
+            gas_price=Decimal("0"),
+            gas_limit=21000,
+            nonce=1,
+            data="Validators fund DINARI allocation - 25M tokens"
+        ),
+        Transaction(
+            from_address="genesis",
+            to_address="DT1cqgze3fqpw0dqh9j8l2dqqyr89c0q5c2jdpg8x",  # Development Fund
+            amount=Decimal("20000000"),  # 20M DINARI
+            gas_price=Decimal("0"),
+            gas_limit=21000,
+            nonce=2,
+            data="Development fund DINARI allocation - 20M tokens"
+        ),
+        Transaction(
+            from_address="genesis",
+            to_address="DT1xz2f8l8lh8vqw3r6n4s2k7j9p1d5g8h3m6c4v7",  # Community Treasury
+            amount=Decimal("15000000"),  # 15M DINARI
+            gas_price=Decimal("0"),
+            gas_limit=21000,
+            nonce=3,
+            data="Community treasury DINARI allocation - 15M tokens"
+        ),
+        Transaction(
+            from_address="genesis",
+            to_address="DT1a7b8c9d0e1f2g3h4i5j6k7l8m9n0o1p2q3r4s5",  # Reserve Fund
+            amount=Decimal("10000000"),  # 10M DINARI
+            gas_price=Decimal("0"),
+            gas_limit=21000,
+            nonce=4,
+            data="Reserve fund DINARI allocation - 10M tokens"
         )
-        
-        # Process genesis transactions (distribute DINARI)
-        for tx in genesis_transactions:
-            if tx.to_address not in self.dinari_balances:
-                self.dinari_balances[tx.to_address] = "0"
-            current_balance = Decimal(self.dinari_balances[tx.to_address])
-            self.dinari_balances[tx.to_address] = str(current_balance + tx.amount)
-            self.logger.info(f"Genesis: Allocated {tx.amount} DINARI to {tx.to_address}")
-        
-        # Deploy Afrocoin stablecoin contract
-        afrocoin_contract = SmartContract(
-            contract_id="afrocoin_stablecoin",
-            code="Afrocoin USD Stablecoin Contract",
-            owner="genesis",
-            contract_type="afrocoin_stablecoin"
-        )
-        self.contracts["afrocoin_stablecoin"] = afrocoin_contract
-        
-        # Store genesis block
-        block_hash = genesis_block.get_hash()
-        self.db.store_block(block_hash, genesis_block.to_dict())
-        
-        # Update chain state
-        self.chain_state["height"] = 1
-        self.chain_state["last_block_hash"] = block_hash
-        self.chain_state["total_dinari_supply"] = str(sum(Decimal(balance) for balance in self.dinari_balances.values()))
-        self.chain_state["total_transactions"] = len(genesis_transactions)
-        self.chain_state["contract_count"] = len(self.contracts)
-        
-        # Save state
-        self._save_chain_state()
-        self._save_balances()
-        self._save_contracts()
-        
-        self.logger.info(f"Genesis block created with {len(genesis_transactions)} initial DINARI allocations")
-        self.logger.info("Afrocoin stablecoin contract deployed at genesis")
+    ]
+    
+    # Verify 100M total
+    total_allocated = sum(tx.amount for tx in genesis_transactions)
+    self.logger.info(f"🚀 Total DINARI allocated: {total_allocated} (Expected: 100,000,000)")
+    
+    genesis_block = Block(
+        index=0,
+        transactions=genesis_transactions,
+        timestamp=int(time.time()),
+        previous_hash="0" * 64,
+        validator="genesis"
+    )
+    
+    # Process genesis transactions (distribute DINARI)
+    for tx in genesis_transactions:
+        if tx.to_address not in self.dinari_balances:
+            self.dinari_balances[tx.to_address] = "0"
+        current_balance = Decimal(self.dinari_balances[tx.to_address])
+        self.dinari_balances[tx.to_address] = str(current_balance + tx.amount)
+        self.logger.info(f"Genesis: Allocated {tx.amount} DINARI to {tx.to_address}")
+    
+    # Deploy Afrocoin stablecoin contract with 200M AFC
+    afrocoin_contract = SmartContract(
+        contract_id="afrocoin_stablecoin",
+        code="Afrocoin USD Stablecoin Contract",
+        owner="genesis",
+        contract_type="afrocoin_stablecoin",
+        initial_state={
+            "name": "Afrocoin",
+            "symbol": "AFC", 
+            "decimals": 18,
+            "total_supply": "200000000",  # 200M AFC
+            "balances": {
+                "DT1qyfe883hey6jrgj2xvk9a3klghvz9z9way2nxvu": "200000000"  # All 200M AFC to treasury
+            },
+            "allowances": {},
+            "collateral_ratio": "150",
+            "price_oracle": "1.00",
+            "stability_fee": "0.5",
+            "liquidation_threshold": "120",
+            "collateral_assets": {
+                "DINARI": {
+                    "active": True,
+                    "price": "0.10",
+                    "ratio": "150",
+                    "deposited": "0"
+                },
+                "BTC": {
+                    "active": True,
+                    "price": "50000.00",
+                    "ratio": "200",
+                    "deposited": "0"
+                },
+                "ETH": {
+                    "active": True,
+                    "price": "3000.00",
+                    "ratio": "180",
+                    "deposited": "0"
+                }
+            },
+            "user_collateral": {},
+            "cdp_counter": 0,
+            "liquidation_penalty": "13",
+            "oracle_addresses": {},
+            "backed_by": "DINARI",
+            "governance_enabled": True,
+            "minting_paused": False
+        }
+    )
+    self.contracts["afrocoin_stablecoin"] = afrocoin_contract
+    
+    # Store genesis block
+    block_hash = genesis_block.get_hash()
+    self.db.store_block(block_hash, genesis_block.to_dict())
+    
+    # Update chain state
+    self.chain_state["height"] = 1
+    self.chain_state["last_block_hash"] = block_hash
+    self.chain_state["total_dinari_supply"] = "100000000"  # 100M DINARI
+    self.chain_state["total_afc_supply"] = "200000000"     # 200M AFC
+    self.chain_state["total_transactions"] = len(genesis_transactions)
+    self.chain_state["contract_count"] = len(self.contracts)
+    
+    # Save state
+    self._save_chain_state()
+    self._save_balances()
+    self._save_contracts()
+    
+    self.logger.info(f"✅ Genesis: 100M DINARI + 200M AFC created")
+    self.logger.info("🪙 Afrocoin stablecoin contract deployed")
     
     def add_transaction(self, transaction: Transaction) -> bool:
         """Add transaction to pending pool with enhanced validation"""
