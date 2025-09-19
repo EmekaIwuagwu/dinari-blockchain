@@ -1,7 +1,7 @@
 #!/usr/bin/env python3
 """
 DinariBlockchain - API Server
-app.py - Complete Flask API server with DT address system for Render.com deployment
+app.py - Complete Flask API server with DT address system and genesis compatibility for Render.com deployment
 """
 
 import os
@@ -64,7 +64,11 @@ P2P_PORT = find_available_port(int(os.getenv('P2P_PORT', 8333)))
 
 class DinariAddress:
     """
-    DinariBlockchain Address System
+    DinariBlockchain Address System with Genesis Compatibility
+    
+    Supports both:
+    - New format: DT + 40 hex chars (42 total)
+    - Legacy genesis: DT + variable length (for backward compatibility)
     
     Address Format: DT + 40 character hex string
     Example: DT1a2b3c4d5e6f7g8h9i0j1k2l3m4n5o6p7q8r9s0t1u2
@@ -79,10 +83,19 @@ class DinariAddress:
     ADDRESS_LENGTH = 42  # DT + 40 hex chars
     HASH_LENGTH = 40     # 160 bits = 40 hex chars
     
+    # Known genesis addresses that bypass strict validation
+    GENESIS_ADDRESSES = {
+        "DT1qyfe883hey6jrgj2xvk9a3klghvz9z9way2nxvu",  # 1M DINARI
+        "DT1sv9m0g077juqa67h64zxzr26k5xu5rcp8c9qvx",   # 500K DINARI
+        "DT1cqgze3fqpw0dqh9j8l2dqqyr89c0q5c2jdpg8x",   # 250K DINARI
+        "DT1xz2f8l8lh8vqw3r6n4s2k7j9p1d5g8h3m6c4v7",   # 100K DINARI
+        "DT1a7b8c9d0e1f2g3h4i5j6k7l8m9n0o1p2q3r4s5"    # 50K DINARI
+    }
+    
     @classmethod
     def generate_address(cls, seed: str = None) -> str:
         """
-        Generate a new DinariBlockchain address
+        Generate a new DinariBlockchain address (42 chars)
         
         Args:
             seed: Optional seed string. If None, uses secure random
@@ -120,23 +133,45 @@ class DinariAddress:
         return cls.generate_address(wallet_name)
     
     @classmethod
+    def generate_multisig_address(cls, public_keys: list, threshold: int) -> str:
+        """
+        Generate a multisig address from multiple public keys
+        
+        Args:
+            public_keys: List of public key strings
+            threshold: Required signatures threshold
+            
+        Returns:
+            DT-prefixed multisig address
+        """
+        # Sort public keys for deterministic address generation
+        sorted_keys = sorted(public_keys)
+        multisig_data = f"multisig_{threshold}_{','.join(sorted_keys)}"
+        return cls.generate_address(multisig_data)
+    
+    @classmethod
     def is_valid_address(cls, address: str) -> bool:
         """
-        Validate a Dinari address format
+        Validate a Dinari address format with genesis compatibility
         
         Args:
             address: Address string to validate
             
         Returns:
-            bool: True if valid DT address
+            bool: True if valid DT address (new format or known genesis)
         """
         if not isinstance(address, str):
             return False
         
-        if len(address) != cls.ADDRESS_LENGTH:
+        if not address.startswith(cls.PREFIX):
             return False
         
-        if not address.startswith(cls.PREFIX):
+        # Allow known genesis addresses (legacy format)
+        if address in cls.GENESIS_ADDRESSES:
+            return True
+        
+        # Strict validation for new addresses
+        if len(address) != cls.ADDRESS_LENGTH:
             return False
         
         # Check if the hash part is valid hex
@@ -146,6 +181,30 @@ class DinariAddress:
             return len(hash_part) == cls.HASH_LENGTH
         except ValueError:
             return False
+    
+    @classmethod
+    def is_genesis_address(cls, address: str) -> bool:
+        """Check if address is a known genesis address"""
+        return address in cls.GENESIS_ADDRESSES
+    
+    @classmethod
+    def get_genesis_addresses(cls) -> set:
+        """Get all known genesis addresses"""
+        return cls.GENESIS_ADDRESSES.copy()
+    
+    @classmethod
+    def get_address_info(cls, address: str) -> dict:
+        """Get detailed information about an address"""
+        return {
+            "address": address,
+            "is_valid": cls.is_valid_address(address),
+            "is_genesis": cls.is_genesis_address(address),
+            "length": len(address),
+            "prefix": address[:2] if len(address) >= 2 else "",
+            "hash_part": address[2:] if len(address) > 2 else "",
+            "expected_format": "DT + 40 hex characters",
+            "expected_length": cls.ADDRESS_LENGTH
+        }
 
 def initialize_blockchain():
     """Initialize blockchain and node"""
@@ -157,6 +216,7 @@ def initialize_blockchain():
         logger.info(f"   P2P Port: {P2P_PORT}")
         logger.info(f"   API Port: {PORT}")
         logger.info(f"   Address Format: DT-prefixed addresses")
+        logger.info(f"   Genesis Compatibility: {len(DinariAddress.GENESIS_ADDRESSES)} known addresses")
         
         # Create blockchain instance first (auto-starts mining and validators)
         blockchain = DinariBlockchain()
@@ -214,7 +274,9 @@ def health_check():
             'node_id': NODE_ID,
             'api_port': PORT,
             'p2p_port': P2P_PORT,
-            'address_format': 'DT-prefixed'
+            'address_format': 'DT-prefixed',
+            'genesis_compatibility': True,
+            'known_genesis_addresses': len(DinariAddress.GENESIS_ADDRESSES)
         }
         
         if blockchain:
@@ -225,7 +287,8 @@ def health_check():
                         'height': chain_info.get('height', 0),
                         'transactions': chain_info.get('total_transactions', 0),
                         'pending': chain_info.get('pending_transactions', 0),
-                        'contracts': chain_info.get('contracts', 0)
+                        'contracts': chain_info.get('contracts', 0),
+                        'mining_active': chain_info.get('mining_active', False)
                     }
                 })
             except Exception as e:
@@ -287,12 +350,15 @@ def blockchain_info():
             'native_token': 'DINARI',
             'stablecoin': 'AFC (Afrocoin)',
             'address_format': 'DT-prefixed addresses',
+            'genesis_compatibility': True,
+            'known_genesis_addresses': len(DinariAddress.GENESIS_ADDRESSES),
             'chain_height': chain_info.get('height', 0),
             'total_transactions': chain_info.get('total_transactions', 0),
             'pending_transactions': chain_info.get('pending_transactions', 0),
             'validators': chain_info.get('validators', 0),
             'contracts': chain_info.get('contracts', 0),
             'total_dinari_supply': chain_info.get('total_dinari_supply', '0'),
+            'mining_active': chain_info.get('mining_active', False),
             'last_block_hash': chain_info.get('last_block_hash', '')[:16] + '...' if chain_info.get('last_block_hash') else 'None'
         }
         
@@ -308,7 +374,7 @@ def get_balance(address):
         if not blockchain:
             return jsonify({'error': 'Blockchain not initialized'}), 503
         
-        # Validate DT address format
+        # Validate DT address format (now supports genesis addresses)
         if not DinariAddress.is_valid_address(address):
             return jsonify({'error': 'Invalid DT address format. Address must start with "DT" followed by 40 hex characters.'}), 400
         
@@ -322,9 +388,12 @@ def get_balance(address):
         if hasattr(blockchain, 'get_afrocoin_balance'):
             afc_balance = str(blockchain.get_afrocoin_balance(address))
         
+        address_info = DinariAddress.get_address_info(address)
+        
         return jsonify({
             'address': address,
             'address_format': 'DT-prefixed',
+            'is_genesis': address_info['is_genesis'],
             'balances': {
                 'DINARI': dinari_balance,
                 'AFC': afc_balance
@@ -349,7 +418,7 @@ def submit_transaction():
             if field not in data:
                 return jsonify({'error': f'Missing field: {field}'}), 400
         
-        # Validate DT addresses
+        # Validate DT addresses (now supports genesis addresses)
         if not DinariAddress.is_valid_address(data['from_address']):
             return jsonify({'error': 'Invalid from_address. Must be DT-prefixed address.'}), 400
         
@@ -374,7 +443,9 @@ def submit_transaction():
             return jsonify({
                 'success': True,
                 'transaction_hash': tx.get_hash(),
-                'message': 'Transaction submitted successfully'
+                'message': 'Transaction submitted successfully',
+                'from_genesis': DinariAddress.is_genesis_address(data['from_address']),
+                'to_genesis': DinariAddress.is_genesis_address(data['to_address'])
             }), 200
         else:
             return jsonify({'error': 'Failed to submit transaction'}), 400
@@ -416,7 +487,7 @@ def deploy_contract():
             if field not in data:
                 return jsonify({'error': f'Missing field: {field}'}), 400
         
-        # Validate owner address
+        # Validate owner address (now supports genesis addresses)
         if not DinariAddress.is_valid_address(data['owner']):
             return jsonify({'error': 'Invalid owner address. Must be DT-prefixed address.'}), 400
         
@@ -433,6 +504,7 @@ def deploy_contract():
             'success': True,
             'contract_id': data['contract_id'],
             'owner': data['owner'],
+            'owner_is_genesis': DinariAddress.is_genesis_address(data['owner']),
             'contract_type': data.get('contract_type', 'general')
         }), 200
         
@@ -453,7 +525,7 @@ def call_contract():
             if field not in data:
                 return jsonify({'error': f'Missing field: {field}'}), 400
         
-        # Validate caller address
+        # Validate caller address (now supports genesis addresses)
         if not DinariAddress.is_valid_address(data['caller']):
             return jsonify({'error': 'Invalid caller address. Must be DT-prefixed address.'}), 400
         
@@ -473,7 +545,8 @@ def call_contract():
             'success': result.get('success', False),
             'result': result.get('result', ''),
             'gas_used': result.get('gas_used', 0),
-            'error': result.get('error', None)
+            'error': result.get('error', None),
+            'caller_is_genesis': DinariAddress.is_genesis_address(data['caller'])
         }), 200
         
     except Exception as e:
@@ -497,6 +570,7 @@ def afrocoin_info():
                 'status': 'deployed',
                 'backed_by': 'DINARI',
                 'owner': afrocoin_contract.owner,
+                'owner_is_genesis': DinariAddress.is_genesis_address(afrocoin_contract.owner),
                 'address_format': 'DT-prefixed'
             })
         else:
@@ -504,6 +578,97 @@ def afrocoin_info():
                 'contract_id': 'afrocoin_stablecoin',
                 'status': 'not_found'
             })
+            
+    except Exception as e:
+        return jsonify({'error': str(e)}), 500
+
+@app.route('/api/genesis/addresses', methods=['GET'])
+def get_genesis_addresses():
+    """Get all known genesis addresses and their info"""
+    try:
+        genesis_addresses = []
+        
+        for address in DinariAddress.get_genesis_addresses():
+            address_info = DinariAddress.get_address_info(address)
+            
+            # Get balance if blockchain is available
+            dinari_balance = "0"
+            afc_balance = "0"
+            
+            if blockchain:
+                try:
+                    dinari_balance = str(blockchain.get_dinari_balance(address))
+                    afc_balance = str(blockchain.get_afrocoin_balance(address))
+                except:
+                    pass
+            
+            genesis_addresses.append({
+                **address_info,
+                'balances': {
+                    'DINARI': dinari_balance,
+                    'AFC': afc_balance
+                }
+            })
+        
+        return jsonify({
+            'total_genesis_addresses': len(genesis_addresses),
+            'genesis_addresses': genesis_addresses
+        }), 200
+        
+    except Exception as e:
+        return jsonify({'error': str(e)}), 500
+
+@app.route('/api/genesis/fund/<address>', methods=['POST'])
+def fund_from_genesis(address):
+    """Fund an address from genesis addresses (for testing)"""
+    try:
+        if not blockchain:
+            return jsonify({'error': 'Blockchain not initialized'}), 503
+        
+        # Validate recipient address
+        if not DinariAddress.is_valid_address(address):
+            return jsonify({'error': 'Invalid recipient address format'}), 400
+        
+        data = request.get_json() if request.get_json() else {}
+        amount = Decimal(str(data.get('amount', '100')))  # Default 100 DINARI
+        
+        # Find a genesis address with sufficient balance
+        funded = False
+        for genesis_addr in DinariAddress.get_genesis_addresses():
+            try:
+                balance = blockchain.get_dinari_balance(genesis_addr)
+                if balance >= amount + Decimal('0.001'):  # Amount + gas fee
+                    # Create transaction from genesis to recipient
+                    tx = Transaction(
+                        from_address=genesis_addr,
+                        to_address=address,
+                        amount=amount,
+                        gas_price=Decimal('0.001'),
+                        gas_limit=21000,
+                        nonce=0,
+                        data=f"Genesis funding to {address}"
+                    )
+                    
+                    success = blockchain.add_transaction(tx)
+                    if success:
+                        funded = True
+                        return jsonify({
+                            'success': True,
+                            'transaction_hash': tx.get_hash(),
+                            'from_genesis': genesis_addr,
+                            'to_address': address,
+                            'amount': str(amount),
+                            'message': f'Funded {amount} DINARI from genesis'
+                        }), 200
+            except Exception as e:
+                logger.warning(f"Failed to fund from {genesis_addr}: {e}")
+                continue
+        
+        if not funded:
+            return jsonify({
+                'success': False,
+                'error': 'No genesis address has sufficient balance'
+            }), 400
             
     except Exception as e:
         return jsonify({'error': str(e)}), 500
@@ -538,12 +703,15 @@ def rpc_handler():
                         "native_token": "DINARI", 
                         "stablecoin": "AFC",
                         "address_format": "DT-prefixed",
+                        "genesis_compatibility": True,
+                        "known_genesis_addresses": len(DinariAddress.GENESIS_ADDRESSES),
                         "height": chain_info.get('height', 0),
                         "total_transactions": chain_info.get('total_transactions', 0),
                         "pending_transactions": chain_info.get('pending_transactions', 0),
                         "validators": chain_info.get('validators', 0),
                         "contracts": chain_info.get('contracts', 0),
-                        "total_dinari_supply": chain_info.get('total_dinari_supply', '0')
+                        "total_dinari_supply": chain_info.get('total_dinari_supply', '0'),
+                        "mining_active": chain_info.get('mining_active', False)
                     }
                 else:
                     result = {"error": "Blockchain not initialized"}
@@ -553,7 +721,7 @@ def rpc_handler():
                     raise ValueError("Address parameter required")
                 address = params[0]
                 
-                # Validate DT address format
+                # Validate DT address format (now supports genesis addresses)
                 if not DinariAddress.is_valid_address(address):
                     raise ValueError("Invalid DT address format")
                 
@@ -562,6 +730,7 @@ def rpc_handler():
                     afc_bal = str(blockchain.get_afrocoin_balance(address))
                     result = {
                         "address": address,
+                        "is_genesis": DinariAddress.is_genesis_address(address),
                         "DINARI": dinari_bal, 
                         "AFC": afc_bal
                     }
@@ -580,7 +749,8 @@ def rpc_handler():
                     "wallet_name": wallet_name,
                     "message": "Wallet created successfully",
                     "address": dt_address,
-                    "address_format": "DT-prefixed"
+                    "address_format": "DT-prefixed",
+                    "is_genesis": False
                 }
                 
             elif method == 'dinari_generateAddress':
@@ -591,7 +761,8 @@ def rpc_handler():
                 result = {
                     "address": dt_address,
                     "address_format": "DT-prefixed",
-                    "length": len(dt_address)
+                    "length": len(dt_address),
+                    "is_genesis": False
                 }
                 
             elif method == 'dinari_validateAddress':
@@ -599,13 +770,71 @@ def rpc_handler():
                     raise ValueError("Address parameter required")
                 address = params[0]
                 
-                is_valid = DinariAddress.is_valid_address(address)
+                address_info = DinariAddress.get_address_info(address)
+                result = address_info
+                
+            elif method == 'dinari_getGenesisAddresses':
+                # New method to get all genesis addresses
+                genesis_addresses = []
+                for addr in DinariAddress.get_genesis_addresses():
+                    addr_info = DinariAddress.get_address_info(addr)
+                    if blockchain:
+                        try:
+                            dinari_balance = str(blockchain.get_dinari_balance(addr))
+                            afc_balance = str(blockchain.get_afrocoin_balance(addr))
+                            addr_info['balances'] = {
+                                'DINARI': dinari_balance,
+                                'AFC': afc_balance
+                            }
+                        except:
+                            addr_info['balances'] = {'DINARI': '0', 'AFC': '0'}
+                    genesis_addresses.append(addr_info)
+                
                 result = {
-                    "address": address,
-                    "is_valid": is_valid,
-                    "expected_format": "DT + 40 hex characters",
-                    "expected_length": 42
+                    "total_genesis_addresses": len(genesis_addresses),
+                    "genesis_addresses": genesis_addresses
                 }
+                
+            elif method == 'dinari_fundFromGenesis':
+                # New method to fund from genesis (for testing)
+                if len(params) < 2:
+                    raise ValueError("Required: recipient_address, amount")
+                
+                recipient = params[0]
+                amount = Decimal(str(params[1]))
+                
+                if not DinariAddress.is_valid_address(recipient):
+                    raise ValueError("Invalid recipient address format")
+                
+                # Find genesis address with sufficient balance
+                for genesis_addr in DinariAddress.get_genesis_addresses():
+                    try:
+                        balance = blockchain.get_dinari_balance(genesis_addr)
+                        if balance >= amount + Decimal('0.001'):
+                            tx = Transaction(
+                                from_address=genesis_addr,
+                                to_address=recipient,
+                                amount=amount,
+                                gas_price=Decimal('0.001'),
+                                gas_limit=21000,
+                                nonce=0,
+                                data="Genesis funding"
+                            )
+                            
+                            success = blockchain.add_transaction(tx)
+                            if success:
+                                result = {
+                                    "success": True,
+                                    "transaction_hash": tx.get_hash(),
+                                    "from_genesis": genesis_addr,
+                                    "to_address": recipient,
+                                    "amount": str(amount)
+                                }
+                                break
+                    except:
+                        continue
+                else:
+                    result = {"success": False, "error": "No genesis address has sufficient balance"}
                 
             elif method == 'dinari_sendTransaction':
                 if len(params) < 3:
@@ -617,7 +846,7 @@ def rpc_handler():
                 gas_price = params[3] if len(params) > 3 else "0.001"
                 data_field = params[4] if len(params) > 4 else ""
                 
-                # Validate DT addresses
+                # Validate DT addresses (now supports genesis addresses)
                 if not DinariAddress.is_valid_address(from_addr):
                     raise ValueError("Invalid from_address format")
                 if not DinariAddress.is_valid_address(to_addr):
@@ -642,7 +871,9 @@ def rpc_handler():
                             "from": from_addr,
                             "to": to_addr,
                             "amount": amount,
-                            "gas_price": gas_price
+                            "gas_price": gas_price,
+                            "from_genesis": DinariAddress.is_genesis_address(from_addr),
+                            "to_genesis": DinariAddress.is_genesis_address(to_addr)
                         }
                     else:
                         result = {"success": False, "error": "Transaction failed"}
@@ -658,7 +889,7 @@ def rpc_handler():
                 caller = params[2]
                 args = params[3] if len(params) > 3 else {}
                 
-                # Validate caller address
+                # Validate caller address (now supports genesis addresses)
                 if not DinariAddress.is_valid_address(caller):
                     raise ValueError("Invalid caller address format")
                 
@@ -679,7 +910,8 @@ def rpc_handler():
                         "success": contract_result.get('success', False),
                         "result": contract_result.get('result', ''),
                         "gas_used": contract_result.get('gas_used', 0),
-                        "error": contract_result.get('error', None)
+                        "error": contract_result.get('error', None),
+                        "caller_is_genesis": DinariAddress.is_genesis_address(caller)
                     }
                 else:
                     result = {"success": False, "error": "Contract manager not available"}
@@ -694,6 +926,7 @@ def rpc_handler():
                         "p2p_port": P2P_PORT,
                         "api_port": PORT,
                         "address_format": "DT-prefixed",
+                        "genesis_compatibility": True,
                         "p2p_status": "active"
                     }
                 else:
@@ -704,6 +937,7 @@ def rpc_handler():
                         "p2p_port": P2P_PORT,
                         "api_port": PORT,
                         "address_format": "DT-prefixed",
+                        "genesis_compatibility": True,
                         "p2p_status": "disabled"
                     }
                     
@@ -740,7 +974,8 @@ def rpc_handler():
                     "native_token": "DINARI",
                     "stablecoin": "AFC",
                     "address_format": "DT-prefixed addresses",
-                    "address_length": 42
+                    "address_length": 42,
+                    "genesis_compatibility": True
                 }
                 
             elif method == 'dinari_getContractInfo':
@@ -754,6 +989,7 @@ def rpc_handler():
                         result = {
                             "contract_id": contract.contract_id,
                             "owner": contract.owner,
+                            "owner_is_genesis": DinariAddress.is_genesis_address(contract.owner),
                             "contract_type": contract.contract_type,
                             "created_at": contract.created_at,
                             "is_active": contract.state.is_active,
@@ -772,7 +1008,7 @@ def rpc_handler():
                 deployer = params[1]
                 init_args = params[2] if len(params) > 2 else {}
                 
-                # Validate deployer address
+                # Validate deployer address (now supports genesis addresses)
                 if not DinariAddress.is_valid_address(deployer):
                     raise ValueError("Invalid deployer address format")
                 
@@ -791,6 +1027,7 @@ def rpc_handler():
                         "success": True,
                         "contract_id": contract_id,
                         "deployer": deployer,
+                        "deployer_is_genesis": DinariAddress.is_genesis_address(deployer),
                         "contract_address": contract_id
                     }
                 else:
@@ -840,6 +1077,7 @@ def create_new_wallet():
             'wallet_name': wallet_name,
             'address': dt_address,
             'address_format': 'DT-prefixed',
+            'is_genesis': False,
             'message': 'Wallet created successfully'
         }), 200
         
@@ -852,15 +1090,36 @@ def generate_address():
     try:
         data = request.get_json() if request.get_json() else {}
         seed = data.get('seed', None)
+        address_type = data.get('type', 'standard')  # standard, multisig
         
-        dt_address = DinariAddress.generate_address(seed)
-        
-        return jsonify({
-            'address': dt_address,
-            'address_format': 'DT-prefixed',
-            'length': len(dt_address),
-            'prefix': DinariAddress.PREFIX
-        }), 200
+        if address_type == 'multisig':
+            public_keys = data.get('public_keys', [])
+            threshold = data.get('threshold', 1)
+            
+            if not public_keys or len(public_keys) < threshold:
+                return jsonify({'error': 'Invalid multisig parameters'}), 400
+            
+            dt_address = DinariAddress.generate_multisig_address(public_keys, threshold)
+            
+            return jsonify({
+                'address': dt_address,
+                'address_format': 'DT-prefixed',
+                'address_type': 'multisig',
+                'threshold': threshold,
+                'public_keys_count': len(public_keys),
+                'length': len(dt_address),
+                'prefix': DinariAddress.PREFIX
+            }), 200
+        else:
+            dt_address = DinariAddress.generate_address(seed)
+            
+            return jsonify({
+                'address': dt_address,
+                'address_format': 'DT-prefixed',
+                'address_type': 'standard',
+                'length': len(dt_address),
+                'prefix': DinariAddress.PREFIX
+            }), 200
         
     except Exception as e:
         return jsonify({'error': str(e)}), 500
@@ -869,16 +1128,32 @@ def generate_address():
 def validate_address(address):
     """Validate a DT-prefixed address"""
     try:
-        is_valid = DinariAddress.is_valid_address(address)
+        address_info = DinariAddress.get_address_info(address)
         
-        return jsonify({
-            'address': address,
-            'is_valid': is_valid,
-            'expected_format': 'DT + 40 hex characters',
-            'expected_length': 42,
-            'actual_length': len(address),
-            'has_correct_prefix': address.startswith('DT') if isinstance(address, str) else False
-        }), 200
+        return jsonify(address_info), 200
+        
+    except Exception as e:
+        return jsonify({'error': str(e)}), 500
+
+@app.route('/api/address/info/<address>', methods=['GET'])
+def get_address_info(address):
+    """Get comprehensive address information"""
+    try:
+        address_info = DinariAddress.get_address_info(address)
+        
+        # Add balance information if blockchain is available
+        if blockchain and address_info['is_valid']:
+            try:
+                dinari_balance = str(blockchain.get_dinari_balance(address))
+                afc_balance = str(blockchain.get_afrocoin_balance(address))
+                address_info['balances'] = {
+                    'DINARI': dinari_balance,
+                    'AFC': afc_balance
+                }
+            except:
+                address_info['balances'] = {'DINARI': '0', 'AFC': '0'}
+        
+        return jsonify(address_info), 200
         
     except Exception as e:
         return jsonify({'error': str(e)}), 500
@@ -921,7 +1196,9 @@ def get_stats():
                 'format': 'DT-prefixed',
                 'prefix': 'DT',
                 'length': 42,
-                'hash_length': 40
+                'hash_length': 40,
+                'genesis_compatibility': True,
+                'known_genesis_addresses': len(DinariAddress.GENESIS_ADDRESSES)
             }
         }
         
@@ -966,6 +1243,7 @@ def index():
             .unhealthy { background: #f8d7da; border: 1px solid #f5c6cb; }
             .endpoint { background: #e9ecef; padding: 10px; margin: 5px 0; font-family: monospace; }
             .address-format { background: #fff3cd; border: 1px solid #ffeaa7; padding: 15px; border-radius: 4px; margin: 15px 0; }
+            .genesis-info { background: #d1ecf1; border: 1px solid #bee5eb; padding: 15px; border-radius: 4px; margin: 15px 0; }
         </style>
     </head>
     <body>
@@ -983,6 +1261,13 @@ def index():
                 <strong>Validation:</strong> Must start with "DT" followed by exactly 40 hexadecimal characters
             </div>
             
+            <div class="genesis-info">
+                <h3>🔑 Genesis Compatibility</h3>
+                <strong>Legacy Support:</strong> 5 known genesis addresses with pre-allocated DINARI<br>
+                <strong>Total Supply:</strong> 1.93M DINARI distributed across genesis addresses<br>
+                <strong>Backward Compatible:</strong> Supports transactions from original genesis addresses
+            </div>
+            
             <h2>🔗 API Endpoints</h2>
             <div class="endpoint">GET /health - Health check</div>
             <div class="endpoint">GET /api/blockchain/info - Blockchain information</div>
@@ -995,6 +1280,9 @@ def index():
             <div class="endpoint">POST /api/wallet/create - Create wallet</div>
             <div class="endpoint">POST /api/address/generate - Generate DT address</div>
             <div class="endpoint">GET /api/address/validate/{address} - Validate DT address</div>
+            <div class="endpoint">GET /api/address/info/{address} - Get address info & balance</div>
+            <div class="endpoint">GET /api/genesis/addresses - Get all genesis addresses</div>
+            <div class="endpoint">POST /api/genesis/fund/{address} - Fund address from genesis</div>
             <div class="endpoint">GET /api/network/peers - Get peers</div>
             <div class="endpoint">GET /api/stats - Get statistics</div>
             <div class="endpoint">POST /rpc - JSON-RPC 2.0 endpoint</div>
@@ -1005,6 +1293,7 @@ def index():
             <div class="endpoint">Address Format: DT-prefixed (42 characters)</div>
             <div class="endpoint">⚡ Auto-Mining: Active (15 second intervals)</div>
             <div class="endpoint">👥 Validators: Auto-created DT addresses</div>
+            <div class="endpoint">🔑 Genesis Addresses: 5 pre-funded addresses</div>
             
             <h2>🔧 JSON-RPC Methods</h2>
             <div class="endpoint">dinari_createWallet - Create new wallet with DT address</div>
@@ -1013,6 +1302,8 @@ def index():
             <div class="endpoint">dinari_getBalance - Get balance for DT address</div>
             <div class="endpoint">dinari_sendTransaction - Send transaction between DT addresses</div>
             <div class="endpoint">dinari_getBlockchainInfo - Get blockchain information</div>
+            <div class="endpoint">dinari_getGenesisAddresses - Get all genesis addresses</div>
+            <div class="endpoint">dinari_fundFromGenesis - Fund address from genesis (testing)</div>
             <div class="endpoint">dinari_callContract - Call smart contract</div>
             <div class="endpoint">dinari_deployContract - Deploy smart contract</div>
             
@@ -1027,6 +1318,10 @@ def index():
                             
                             if (data.blockchain) {
                                 statusText += ` | Height: ${data.blockchain.height} | Validators: ${data.blockchain.validators || 0}`;
+                            }
+                            
+                            if (data.genesis_compatibility) {
+                                statusText += ` | Genesis: ${data.known_genesis_addresses} addresses`;
                             }
                             
                             if (data.network && data.network.status) {
@@ -1065,7 +1360,8 @@ if __name__ == '__main__':
         
         # Start Flask app
         logger.info(f"🚀 Starting DinariBlockchain API server on port {PORT}")
-        logger.info(f"📍 Using DT-prefixed address format")
+        logger.info(f"📍 Using DT-prefixed address format with genesis compatibility")
+        logger.info(f"🔑 Supporting {len(DinariAddress.GENESIS_ADDRESSES)} known genesis addresses")
         app.run(
             host='0.0.0.0',
             port=PORT,
