@@ -349,6 +349,53 @@ def afrocoin_info():
             
     except Exception as e:
         return jsonify({'error': str(e)}), 500
+    
+@app.route('/rpc', methods=['POST'])
+def rpc_handler():
+    """JSON-RPC 2.0 endpoint"""
+    try:
+        data = request.get_json()
+        
+        if not data or 'method' not in data:
+            return jsonify({
+                "jsonrpc": "2.0",
+                "error": {"code": -32600, "message": "Invalid Request"},
+                "id": data.get('id') if data else None
+            }), 400
+        
+        method = data['method']
+        params = data.get('params', [])
+        rpc_id = data.get('id', 1)
+        
+        # Handle RPC methods
+        if method == 'dinari_ping':
+            result = "pong"
+        elif method == 'dinari_getBlockchainInfo':
+            result = blockchain.get_chain_info() if blockchain else {}
+        elif method == 'dinari_getBalance':
+            address = params[0] if params else ""
+            dinari_bal = str(blockchain.get_dinari_balance(address)) if blockchain else "0"
+            afc_bal = str(blockchain.get_afrocoin_balance(address)) if blockchain else "0"
+            result = {"DINARI": dinari_bal, "AFC": afc_bal}
+        else:
+            return jsonify({
+                "jsonrpc": "2.0",
+                "error": {"code": -32601, "message": "Method not found"},
+                "id": rpc_id
+            }), 404
+        
+        return jsonify({
+            "jsonrpc": "2.0",
+            "result": result,
+            "id": rpc_id
+        })
+        
+    except Exception as e:
+        return jsonify({
+            "jsonrpc": "2.0",
+            "error": {"code": -32000, "message": str(e)},
+            "id": data.get('id') if 'data' in locals() else None
+        }), 500
 
 @app.route('/api/wallet/create', methods=['POST'])
 def create_new_wallet():
