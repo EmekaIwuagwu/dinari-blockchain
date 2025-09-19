@@ -1,7 +1,7 @@
 #!/usr/bin/env python3
 """
 DinariBlockchain - API Server
-app.py - Fixed Flask API server for Render.com deployment
+app.py - Complete Flask API server with DT address system for Render.com deployment
 """
 
 import os
@@ -10,6 +10,7 @@ import time
 import hashlib
 import time
 import logging
+import secrets
 from flask import Flask, request, jsonify
 from flask_cors import CORS
 from decimal import Decimal
@@ -47,6 +48,91 @@ PORT = int(os.getenv('PORT', 5000))  # Render.com sets PORT
 NODE_ID = os.getenv('NODE_ID', 'api_node')
 P2P_PORT = int(os.getenv('P2P_PORT', 8333))
 
+class DinariAddress:
+    """
+    DinariBlockchain Address System
+    
+    Address Format: DT + 40 character hex string
+    Example: DT1a2b3c4d5e6f7g8h9i0j1k2l3m4n5o6p7q8r9s0t1u2
+    
+    - DT: Dinari Token prefix (2 chars)
+    - 40 chars: SHA-256 hash truncated to 160 bits (40 hex chars)
+    - Case sensitive
+    - Total length: 42 characters
+    """
+    
+    PREFIX = "DT"
+    ADDRESS_LENGTH = 42  # DT + 40 hex chars
+    HASH_LENGTH = 40     # 160 bits = 40 hex chars
+    
+    @classmethod
+    def generate_address(cls, seed: str = None) -> str:
+        """
+        Generate a new DinariBlockchain address
+        
+        Args:
+            seed: Optional seed string. If None, uses secure random
+            
+        Returns:
+            DT-prefixed address string
+        """
+        if seed is None:
+            # Generate secure random seed
+            seed = secrets.token_hex(32)
+        
+        # Create SHA-256 hash
+        hash_obj = hashlib.sha256(seed.encode('utf-8'))
+        hash_hex = hash_obj.hexdigest()
+        
+        # Take first 40 characters (160 bits)
+        address_hash = hash_hex[:cls.HASH_LENGTH]
+        
+        # Combine prefix with hash
+        address = f"{cls.PREFIX}{address_hash}"
+        
+        return address
+    
+    @classmethod
+    def generate_from_wallet_name(cls, wallet_name: str) -> str:
+        """
+        Generate deterministic address from wallet name
+        
+        Args:
+            wallet_name: Name of the wallet
+            
+        Returns:
+            DT-prefixed address
+        """
+        return cls.generate_address(wallet_name)
+    
+    @classmethod
+    def is_valid_address(cls, address: str) -> bool:
+        """
+        Validate a Dinari address format
+        
+        Args:
+            address: Address string to validate
+            
+        Returns:
+            bool: True if valid DT address
+        """
+        if not isinstance(address, str):
+            return False
+        
+        if len(address) != cls.ADDRESS_LENGTH:
+            return False
+        
+        if not address.startswith(cls.PREFIX):
+            return False
+        
+        # Check if the hash part is valid hex
+        hash_part = address[len(cls.PREFIX):]
+        try:
+            int(hash_part, 16)
+            return len(hash_part) == cls.HASH_LENGTH
+        except ValueError:
+            return False
+
 def initialize_blockchain():
     """Initialize blockchain and node"""
     global blockchain_node, blockchain, contract_manager
@@ -56,6 +142,7 @@ def initialize_blockchain():
         logger.info(f"   Node ID: {NODE_ID}")
         logger.info(f"   P2P Port: {P2P_PORT}")
         logger.info(f"   API Port: {PORT}")
+        logger.info(f"   Address Format: DT-prefixed addresses")
         
         # Create blockchain instance first
         blockchain = DinariBlockchain()
@@ -103,7 +190,8 @@ def health_check():
             'timestamp': time.time(),
             'node_id': NODE_ID,
             'api_port': PORT,
-            'p2p_port': P2P_PORT
+            'p2p_port': P2P_PORT,
+            'address_format': 'DT-prefixed'
         }
         
         if blockchain:
@@ -152,6 +240,7 @@ def blockchain_info():
             'network_id': 'dinari_mainnet',
             'native_token': 'DINARI',
             'stablecoin': 'AFC (Afrocoin)',
+            'address_format': 'DT-prefixed addresses',
             'chain_height': chain_info.get('height', 0),
             'total_transactions': chain_info.get('total_transactions', 0),
             'pending_transactions': chain_info.get('pending_transactions', 0),
@@ -173,6 +262,10 @@ def get_balance(address):
         if not blockchain:
             return jsonify({'error': 'Blockchain not initialized'}), 503
         
+        # Validate DT address format
+        if not DinariAddress.is_valid_address(address):
+            return jsonify({'error': 'Invalid DT address format. Address must start with "DT" followed by 40 hex characters.'}), 400
+        
         # Get DINARI balance
         dinari_balance = "0"
         afc_balance = "0"
@@ -185,6 +278,7 @@ def get_balance(address):
         
         return jsonify({
             'address': address,
+            'address_format': 'DT-prefixed',
             'balances': {
                 'DINARI': dinari_balance,
                 'AFC': afc_balance
@@ -208,6 +302,13 @@ def submit_transaction():
         for field in required_fields:
             if field not in data:
                 return jsonify({'error': f'Missing field: {field}'}), 400
+        
+        # Validate DT addresses
+        if not DinariAddress.is_valid_address(data['from_address']):
+            return jsonify({'error': 'Invalid from_address. Must be DT-prefixed address.'}), 400
+        
+        if not DinariAddress.is_valid_address(data['to_address']):
+            return jsonify({'error': 'Invalid to_address. Must be DT-prefixed address.'}), 400
         
         # Create transaction
         tx = Transaction(
@@ -269,6 +370,10 @@ def deploy_contract():
             if field not in data:
                 return jsonify({'error': f'Missing field: {field}'}), 400
         
+        # Validate owner address
+        if not DinariAddress.is_valid_address(data['owner']):
+            return jsonify({'error': 'Invalid owner address. Must be DT-prefixed address.'}), 400
+        
         # Deploy contract
         contract = contract_manager.deploy_contract(
             contract_id=data['contract_id'],
@@ -301,6 +406,10 @@ def call_contract():
         for field in required_fields:
             if field not in data:
                 return jsonify({'error': f'Missing field: {field}'}), 400
+        
+        # Validate caller address
+        if not DinariAddress.is_valid_address(data['caller']):
+            return jsonify({'error': 'Invalid caller address. Must be DT-prefixed address.'}), 400
         
         function_data = {
             'function': data['function_name'],
@@ -341,7 +450,8 @@ def afrocoin_info():
                 'type': 'stablecoin',
                 'status': 'deployed',
                 'backed_by': 'DINARI',
-                'owner': afrocoin_contract.owner
+                'owner': afrocoin_contract.owner,
+                'address_format': 'DT-prefixed'
             })
         else:
             return jsonify({
@@ -381,6 +491,7 @@ def rpc_handler():
                         "network_id": "dinari_mainnet",
                         "native_token": "DINARI", 
                         "stablecoin": "AFC",
+                        "address_format": "DT-prefixed",
                         "height": chain_info.get('height', 0),
                         "total_transactions": chain_info.get('total_transactions', 0),
                         "pending_transactions": chain_info.get('pending_transactions', 0),
@@ -395,6 +506,11 @@ def rpc_handler():
                 if not params:
                     raise ValueError("Address parameter required")
                 address = params[0]
+                
+                # Validate DT address format
+                if not DinariAddress.is_valid_address(address):
+                    raise ValueError("Invalid DT address format")
+                
                 if blockchain:
                     dinari_bal = str(blockchain.get_dinari_balance(address))
                     afc_bal = str(blockchain.get_afrocoin_balance(address))
@@ -409,11 +525,40 @@ def rpc_handler():
             elif method == 'dinari_createWallet':
                 wallet_name = params[0] if params else f"wallet_{int(time.time())}"
                 wallet = create_wallet()
+                
+                # Generate DT-prefixed address
+                dt_address = DinariAddress.generate_from_wallet_name(wallet_name)
+                
                 result = {
                     "success": True,
                     "wallet_name": wallet_name,
                     "message": "Wallet created successfully",
-                    "address": f"dinari1{hashlib.sha256(wallet_name.encode()).hexdigest()[:40]}"
+                    "address": dt_address,
+                    "address_format": "DT-prefixed"
+                }
+                
+            elif method == 'dinari_generateAddress':
+                # New method to generate DT address
+                seed = params[0] if params else None
+                dt_address = DinariAddress.generate_address(seed)
+                
+                result = {
+                    "address": dt_address,
+                    "address_format": "DT-prefixed",
+                    "length": len(dt_address)
+                }
+                
+            elif method == 'dinari_validateAddress':
+                if not params:
+                    raise ValueError("Address parameter required")
+                address = params[0]
+                
+                is_valid = DinariAddress.is_valid_address(address)
+                result = {
+                    "address": address,
+                    "is_valid": is_valid,
+                    "expected_format": "DT + 40 hex characters",
+                    "expected_length": 42
                 }
                 
             elif method == 'dinari_sendTransaction':
@@ -425,6 +570,12 @@ def rpc_handler():
                 amount = params[2]
                 gas_price = params[3] if len(params) > 3 else "0.001"
                 data_field = params[4] if len(params) > 4 else ""
+                
+                # Validate DT addresses
+                if not DinariAddress.is_valid_address(from_addr):
+                    raise ValueError("Invalid from_address format")
+                if not DinariAddress.is_valid_address(to_addr):
+                    raise ValueError("Invalid to_address format")
                 
                 if blockchain:
                     tx = Transaction(
@@ -461,6 +612,10 @@ def rpc_handler():
                 caller = params[2]
                 args = params[3] if len(params) > 3 else {}
                 
+                # Validate caller address
+                if not DinariAddress.is_valid_address(caller):
+                    raise ValueError("Invalid caller address format")
+                
                 if contract_manager:
                     function_data = {
                         'function': function_name,
@@ -491,7 +646,8 @@ def rpc_handler():
                         "connected_peers": network_info.get('connected_peers', 0),
                         "is_validator": network_info.get('is_validator', False),
                         "p2p_port": P2P_PORT,
-                        "api_port": PORT
+                        "api_port": PORT,
+                        "address_format": "DT-prefixed"
                     }
                 else:
                     result = {
@@ -499,7 +655,8 @@ def rpc_handler():
                         "connected_peers": 0,
                         "is_validator": False,
                         "p2p_port": P2P_PORT,
-                        "api_port": PORT
+                        "api_port": PORT,
+                        "address_format": "DT-prefixed"
                     }
                     
             elif method == 'dinari_getValidators':
@@ -533,7 +690,9 @@ def rpc_handler():
                     "rpc_version": "2.0",
                     "network": "dinari_mainnet",
                     "native_token": "DINARI",
-                    "stablecoin": "AFC"
+                    "stablecoin": "AFC",
+                    "address_format": "DT-prefixed addresses",
+                    "address_length": 42
                 }
                 
             elif method == 'dinari_getContractInfo':
@@ -564,6 +723,10 @@ def rpc_handler():
                 contract_code = params[0]
                 deployer = params[1]
                 init_args = params[2] if len(params) > 2 else {}
+                
+                # Validate deployer address
+                if not DinariAddress.is_valid_address(deployer):
+                    raise ValueError("Invalid deployer address format")
                 
                 contract_id = f"contract_{int(time.time())}"
                 
@@ -621,10 +784,52 @@ def create_new_wallet():
         
         wallet = create_wallet()
         
+        # Generate DT-prefixed address
+        dt_address = DinariAddress.generate_from_wallet_name(wallet_name)
+        
         return jsonify({
             'success': True,
             'wallet_name': wallet_name,
+            'address': dt_address,
+            'address_format': 'DT-prefixed',
             'message': 'Wallet created successfully'
+        }), 200
+        
+    except Exception as e:
+        return jsonify({'error': str(e)}), 500
+
+@app.route('/api/address/generate', methods=['POST'])
+def generate_address():
+    """Generate a new DT-prefixed address"""
+    try:
+        data = request.get_json() if request.get_json() else {}
+        seed = data.get('seed', None)
+        
+        dt_address = DinariAddress.generate_address(seed)
+        
+        return jsonify({
+            'address': dt_address,
+            'address_format': 'DT-prefixed',
+            'length': len(dt_address),
+            'prefix': DinariAddress.PREFIX
+        }), 200
+        
+    except Exception as e:
+        return jsonify({'error': str(e)}), 500
+
+@app.route('/api/address/validate/<address>', methods=['GET'])
+def validate_address(address):
+    """Validate a DT-prefixed address"""
+    try:
+        is_valid = DinariAddress.is_valid_address(address)
+        
+        return jsonify({
+            'address': address,
+            'is_valid': is_valid,
+            'expected_format': 'DT + 40 hex characters',
+            'expected_length': 42,
+            'actual_length': len(address),
+            'has_correct_prefix': address.startswith('DT') if isinstance(address, str) else False
         }), 200
         
     except Exception as e:
@@ -659,7 +864,13 @@ def get_stats():
     try:
         stats = {
             'timestamp': time.time(),
-            'node_id': NODE_ID
+            'node_id': NODE_ID,
+            'address_system': {
+                'format': 'DT-prefixed',
+                'prefix': 'DT',
+                'length': 42,
+                'hash_length': 40
+            }
         }
         
         if blockchain:
@@ -700,6 +911,7 @@ def index():
             .healthy { background: #d4edda; border: 1px solid #c3e6cb; }
             .unhealthy { background: #f8d7da; border: 1px solid #f5c6cb; }
             .endpoint { background: #e9ecef; padding: 10px; margin: 5px 0; font-family: monospace; }
+            .address-format { background: #fff3cd; border: 1px solid #ffeaa7; padding: 15px; border-radius: 4px; margin: 15px 0; }
         </style>
     </head>
     <body>
@@ -709,6 +921,13 @@ def index():
             
             <h2>📊 Status</h2>
             <div id="status" class="status">Loading...</div>
+            
+            <div class="address-format">
+                <h3>📍 Address Format</h3>
+                <strong>DT-prefixed addresses:</strong> DT + 40 hex characters (42 total length)<br>
+                <strong>Example:</strong> DT1a2b3c4d5e6f7g8h9i0j1k2l3m4n5o6p7q8r9s0t1u2<br>
+                <strong>Validation:</strong> Must start with "DT" followed by exactly 40 hexadecimal characters
+            </div>
             
             <h2>🔗 API Endpoints</h2>
             <div class="endpoint">GET /health - Health check</div>
@@ -720,12 +939,26 @@ def index():
             <div class="endpoint">POST /api/contracts/call - Call contract</div>
             <div class="endpoint">GET /api/contracts/afrocoin - Afrocoin contract info</div>
             <div class="endpoint">POST /api/wallet/create - Create wallet</div>
+            <div class="endpoint">POST /api/address/generate - Generate DT address</div>
+            <div class="endpoint">GET /api/address/validate/{address} - Validate DT address</div>
             <div class="endpoint">GET /api/network/peers - Get peers</div>
             <div class="endpoint">GET /api/stats - Get statistics</div>
+            <div class="endpoint">POST /rpc - JSON-RPC 2.0 endpoint</div>
             
             <h2>💰 Token Information</h2>
             <div class="endpoint">Native Token: DINARI (gas fees, transactions)</div>
             <div class="endpoint">Stablecoin: AFC (Afrocoin) - USD pegged</div>
+            <div class="endpoint">Address Format: DT-prefixed (42 characters)</div>
+            
+            <h2>🔧 JSON-RPC Methods</h2>
+            <div class="endpoint">dinari_createWallet - Create new wallet with DT address</div>
+            <div class="endpoint">dinari_generateAddress - Generate new DT address</div>
+            <div class="endpoint">dinari_validateAddress - Validate DT address format</div>
+            <div class="endpoint">dinari_getBalance - Get balance for DT address</div>
+            <div class="endpoint">dinari_sendTransaction - Send transaction between DT addresses</div>
+            <div class="endpoint">dinari_getBlockchainInfo - Get blockchain information</div>
+            <div class="endpoint">dinari_callContract - Call smart contract</div>
+            <div class="endpoint">dinari_deployContract - Deploy smart contract</div>
             
             <script>
                 fetch('/health')
@@ -734,7 +967,7 @@ def index():
                         const statusEl = document.getElementById('status');
                         if (data.status === 'healthy') {
                             statusEl.className = 'status healthy';
-                            statusEl.innerHTML = `✅ Healthy - Node: ${data.node_id} | Port: ${data.api_port}`;
+                            statusEl.innerHTML = `✅ Healthy - Node: ${data.node_id} | Port: ${data.api_port} | Address: ${data.address_format}`;
                         } else {
                             statusEl.className = 'status unhealthy';
                             statusEl.innerHTML = `❌ Unhealthy - ${data.error || 'Unknown error'}`;
@@ -766,6 +999,7 @@ if __name__ == '__main__':
         
         # Start Flask app
         logger.info(f"🚀 Starting DinariBlockchain API server on port {PORT}")
+        logger.info(f"📍 Using DT-prefixed address format")
         app.run(
             host='0.0.0.0',
             port=PORT,

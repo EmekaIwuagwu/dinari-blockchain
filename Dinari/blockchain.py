@@ -2,11 +2,13 @@
 DinariBlockchain with LevelDB Storage & Smart Contracts
 File: dinari/blockchain.py
 Native DINARI token blockchain with Afrocoin stablecoin support
+FIXED: Auto block mining, transaction processing, balance persistence
 """
 
 import hashlib
 import json
 import time
+import threading
 from typing import List, Dict, Optional, Any, Union
 from dataclasses import dataclass, asdict
 from decimal import Decimal, getcontext
@@ -525,6 +527,7 @@ class DinariBlockchain:
     """
     DinariBlockchain - Native DINARI token blockchain
     Supports smart contracts including Afrocoin stablecoin
+    FIXED: Auto-mining, transaction processing, balance persistence
     """
     
     def __init__(self, db_path: str = "./dinari_data"):
@@ -540,11 +543,51 @@ class DinariBlockchain:
         self.dinari_balances = self._load_balances()  # Native DINARI balances
         self.contracts = self._load_contracts()
         
+        # Mining control
+        self.mining_active = False
+        self.mining_thread = None
+        
         # Initialize genesis block if needed
         if self.chain_state["height"] == 0:
             self._create_genesis_block()
             
         self.logger.info(f"DinariBlockchain initialized with {len(self.validators)} validators")
+    
+    def start_automatic_mining(self, interval: int = 15):
+        """Start automatic block mining every interval seconds"""
+        if self.mining_active:
+            self.logger.warning("Mining already active")
+            return
+        
+        self.mining_active = True
+        
+        def mine_blocks():
+            self.logger.info(f"Started automatic mining with {interval}s interval")
+            while self.mining_active:
+                try:
+                    if self.pending_transactions:
+                        # Create block with pending transactions
+                        block = self.create_block("auto_miner")
+                        if block:
+                            self.logger.info(f"✅ Auto-mined block {block.index} with {len(block.transactions)} txs")
+                    
+                    # Wait for next mining cycle
+                    time.sleep(interval)
+                    
+                except Exception as e:
+                    self.logger.error(f"Mining error: {e}")
+                    time.sleep(5)  # Wait before retrying
+        
+        self.mining_thread = threading.Thread(target=mine_blocks, daemon=True)
+        self.mining_thread.start()
+        self.logger.info(f"🚀 Started automatic block mining every {interval} seconds")
+    
+    def stop_automatic_mining(self):
+        """Stop automatic block mining"""
+        self.mining_active = False
+        if self.mining_thread:
+            self.mining_thread.join(timeout=1)
+        self.logger.info("⏹️ Stopped automatic block mining")
     
     def _load_chain_state(self) -> dict:
         """Load blockchain state from LevelDB"""
@@ -560,6 +603,7 @@ class DinariBlockchain:
     def _save_chain_state(self):
         """Save blockchain state to LevelDB"""
         self.db.store_chain_state(self.chain_state)
+        self.logger.debug("Chain state saved to database")
     
     def _load_validators(self) -> List[str]:
         """Load validators list"""
@@ -576,6 +620,7 @@ class DinariBlockchain:
     def _save_balances(self):
         """Save DINARI token balances"""
         self.db.put("dinari_balances", self.dinari_balances)
+        self.logger.debug("DINARI balances saved to database")
     
     def _load_contracts(self) -> Dict[str, SmartContract]:
         """Load smart contracts"""
@@ -596,13 +641,14 @@ class DinariBlockchain:
         for contract_id, contract in self.contracts.items():
             contracts_data[contract_id] = contract.to_dict()
         self.db.put("contracts", contracts_data)
+        self.logger.debug("Contracts saved to database")
     
     def _create_genesis_block(self):
         """Create genesis block with initial DINARI allocations and deploy Afrocoin contract"""
         genesis_transactions = [
             Transaction(
                 from_address="genesis",
-                to_address="dinari1qyfe883hey6jrgj2xvk9a3klghvz9z9way2nxvu",
+                to_address="DT1qyfe883hey6jrgj2xvk9a3klghvz9z9way2nxvu",  # DT prefix
                 amount=Decimal("1000000"),  # 1M DINARI
                 gas_price=Decimal("0"),
                 gas_limit=21000,
@@ -611,7 +657,7 @@ class DinariBlockchain:
             ),
             Transaction(
                 from_address="genesis", 
-                to_address="dinari1sv9m0g077juqa67h64zxzr26k5xu5rcp8c9qvx",
+                to_address="DT1sv9m0g077juqa67h64zxzr26k5xu5rcp8c9qvx",  # DT prefix
                 amount=Decimal("500000"),  # 500K DINARI
                 gas_price=Decimal("0"),
                 gas_limit=21000,
@@ -620,7 +666,7 @@ class DinariBlockchain:
             ),
             Transaction(
                 from_address="genesis",
-                to_address="dinari1cqgze3fqpw0dqh9j8l2dqqyr89c0q5c2jdpg8x",
+                to_address="DT1cqgze3fqpw0dqh9j8l2dqqyr89c0q5c2jdpg8x",  # DT prefix
                 amount=Decimal("250000"),  # 250K DINARI
                 gas_price=Decimal("0"),
                 gas_limit=21000,
@@ -629,7 +675,7 @@ class DinariBlockchain:
             ),
             Transaction(
                 from_address="genesis",
-                to_address="dinari1xz2f8l8lh8vqw3r6n4s2k7j9p1d5g8h3m6c4v7",
+                to_address="DT1xz2f8l8lh8vqw3r6n4s2k7j9p1d5g8h3m6c4v7",  # DT prefix
                 amount=Decimal("100000"),  # 100K DINARI
                 gas_price=Decimal("0"),
                 gas_limit=21000,
@@ -638,7 +684,7 @@ class DinariBlockchain:
             ),
             Transaction(
                 from_address="genesis",
-                to_address="dinari1a7b8c9d0e1f2g3h4i5j6k7l8m9n0o1p2q3r4s5",
+                to_address="DT1a7b8c9d0e1f2g3h4i5j6k7l8m9n0o1p2q3r4s5",  # DT prefix
                 amount=Decimal("50000"),  # 50K DINARI
                 gas_price=Decimal("0"),
                 gas_limit=21000,
@@ -661,6 +707,7 @@ class DinariBlockchain:
                 self.dinari_balances[tx.to_address] = "0"
             current_balance = Decimal(self.dinari_balances[tx.to_address])
             self.dinari_balances[tx.to_address] = str(current_balance + tx.amount)
+            self.logger.info(f"Genesis: Allocated {tx.amount} DINARI to {tx.to_address}")
         
         # Deploy Afrocoin stablecoin contract
         afrocoin_contract = SmartContract(
@@ -691,9 +738,9 @@ class DinariBlockchain:
         self.logger.info("Afrocoin stablecoin contract deployed at genesis")
     
     def add_transaction(self, transaction: Transaction) -> bool:
-        """Add transaction to pending pool"""
+        """Add transaction to pending pool with enhanced validation"""
         try:
-            # Basic validation
+            # Enhanced validation
             if not self._validate_transaction(transaction):
                 return False
             
@@ -703,7 +750,11 @@ class DinariBlockchain:
             tx_hash = transaction.get_hash()
             self.db.store_transaction(tx_hash, transaction.to_dict())
             
-            self.logger.info(f"Transaction added: {tx_hash}")
+            self.logger.info(f"✅ Transaction added to mempool: {tx_hash[:16]}...")
+            self.logger.info(f"   From: {transaction.from_address[:20]}...")
+            self.logger.info(f"   To: {transaction.to_address[:20]}...")
+            self.logger.info(f"   Amount: {transaction.amount} DINARI")
+            
             return True
             
         except Exception as e:
@@ -711,20 +762,28 @@ class DinariBlockchain:
             return False
     
     def _validate_transaction(self, tx: Transaction) -> bool:
-        """Validate transaction"""
+        """Enhanced transaction validation"""
         try:
-            # Check DINARI balance (skip for genesis and contract calls)
-            if tx.from_address != "genesis" and tx.tx_type != "contract_call":
-                sender_balance = Decimal(self.dinari_balances.get(tx.from_address, "0"))
-                total_cost = tx.amount + (tx.gas_price * tx.gas_limit)
-                if sender_balance < total_cost:
-                    self.logger.warning(f"Insufficient DINARI balance: {tx.from_address}")
-                    return False
-            
             # Basic format validation
             if tx.amount < 0:
+                self.logger.warning(f"Invalid amount: {tx.amount}")
                 return False
+            
+            # Check DINARI balance for non-genesis transactions
+            if tx.from_address != "genesis":
+                sender_balance = Decimal(self.dinari_balances.get(tx.from_address, "0"))
+                gas_fee = tx.gas_price * tx.gas_limit
+                total_cost = tx.amount + gas_fee
                 
+                if sender_balance < total_cost:
+                    self.logger.warning(f"❌ Insufficient DINARI: {tx.from_address}")
+                    self.logger.warning(f"   Required: {total_cost} DINARI (amount: {tx.amount} + gas: {gas_fee})")
+                    self.logger.warning(f"   Available: {sender_balance} DINARI")
+                    return False
+                
+                self.logger.debug(f"✅ Balance check passed for {tx.from_address}")
+                self.logger.debug(f"   Balance: {sender_balance} DINARI, Cost: {total_cost} DINARI")
+            
             return True
             
         except Exception as e:
@@ -732,9 +791,10 @@ class DinariBlockchain:
             return False
     
     def create_block(self, validator_address: str) -> Optional[Block]:
-        """Create new block with pending transactions"""
+        """Create new block with pending transactions - FIXED VERSION"""
         try:
             if not self.pending_transactions:
+                self.logger.debug("No pending transactions to mine")
                 return None
             
             new_block = Block(
@@ -745,8 +805,10 @@ class DinariBlockchain:
                 validator=validator_address
             )
             
-            # Process transactions
-            total_gas_used = self._process_transactions(new_block.transactions)
+            self.logger.info(f"🔨 Creating block {new_block.index} with {len(new_block.transactions)} transactions")
+            
+            # Process transactions with enhanced logging
+            total_gas_used = self._process_transactions_fixed(new_block.transactions)
             new_block.gas_used = total_gas_used
             
             # Store block
@@ -762,24 +824,36 @@ class DinariBlockchain:
             # Clear pending transactions
             self.pending_transactions = []
             
-            # Save state
+            # CRITICAL: Save all state changes
             self._save_chain_state()
             self._save_balances()
             self._save_contracts()
             
-            self.logger.info(f"Block {new_block.index} created with {len(new_block.transactions)} transactions")
+            self.logger.info(f"✅ Block {new_block.index} mined successfully")
+            self.logger.info(f"   Block hash: {block_hash[:16]}...")
+            self.logger.info(f"   Gas used: {total_gas_used}")
+            self.logger.info(f"   New chain height: {self.chain_state['height']}")
+            
             return new_block
             
         except Exception as e:
             self.logger.error(f"Failed to create block: {e}")
             return None
     
-    def _process_transactions(self, transactions: List[Transaction]) -> int:
-        """Process transactions and update DINARI balances"""
+    def _process_transactions_fixed(self, transactions: List[Transaction]) -> int:
+        """FIXED transaction processing with proper balance updates"""
         total_gas_used = 0
         
-        for tx in transactions:
+        self.logger.info(f"Processing {len(transactions)} transactions...")
+        
+        for i, tx in enumerate(transactions):
             try:
+                self.logger.info(f"📋 Processing transaction {i+1}/{len(transactions)}")
+                self.logger.info(f"   Type: {tx.tx_type}")
+                self.logger.info(f"   From: {tx.from_address[:20]}...")
+                self.logger.info(f"   To: {tx.to_address[:20]}...")
+                self.logger.info(f"   Amount: {tx.amount} DINARI")
+                
                 if tx.tx_type == "contract_call":
                     # Execute contract function
                     result = self.execute_contract(
@@ -789,6 +863,7 @@ class DinariBlockchain:
                         tx.amount
                     )
                     total_gas_used += result.get('gas_used', 21000)
+                    self.logger.info(f"   ✅ Contract call executed")
                     
                 elif tx.tx_type == "contract_deploy":
                     # Deploy new contract
@@ -800,27 +875,49 @@ class DinariBlockchain:
                         contract_data.get('contract_type', 'general'),
                         contract_data.get('initial_state', {})
                     )
-                    total_gas_used += 50000  # Contract deployment gas
+                    total_gas_used += 50000
+                    self.logger.info(f"   ✅ Contract deployed")
                     
                 else:
-                    # Regular DINARI transfer
+                    # FIXED: Regular DINARI transfer with proper validation
                     if tx.from_address != "genesis":
-                        # Debit sender
+                        # Double-check sender balance
                         sender_balance = Decimal(self.dinari_balances.get(tx.from_address, "0"))
                         gas_fee = tx.gas_price * tx.gas_limit
-                        self.dinari_balances[tx.from_address] = str(sender_balance - tx.amount - gas_fee)
+                        total_cost = tx.amount + gas_fee
+                        
+                        if sender_balance < total_cost:
+                            self.logger.error(f"❌ Insufficient balance during processing: {tx.from_address}")
+                            continue  # Skip this transaction
+                        
+                        # Debit sender
+                        new_sender_balance = sender_balance - total_cost
+                        self.dinari_balances[tx.from_address] = str(new_sender_balance)
+                        
+                        self.logger.info(f"   💸 Debited sender: {total_cost} DINARI")
+                        self.logger.info(f"   📊 Sender balance: {sender_balance} → {new_sender_balance}")
                     
                     # Credit recipient
                     if tx.to_address not in self.dinari_balances:
                         self.dinari_balances[tx.to_address] = "0"
+                    
                     recipient_balance = Decimal(self.dinari_balances[tx.to_address])
-                    self.dinari_balances[tx.to_address] = str(recipient_balance + tx.amount)
+                    new_recipient_balance = recipient_balance + tx.amount
+                    self.dinari_balances[tx.to_address] = str(new_recipient_balance)
+                    
+                    self.logger.info(f"   💰 Credited recipient: {tx.amount} DINARI")
+                    self.logger.info(f"   📊 Recipient balance: {recipient_balance} → {new_recipient_balance}")
                     
                     total_gas_used += tx.gas_limit
+                    self.logger.info(f"   ✅ DINARI transfer completed")
                     
             except Exception as e:
-                self.logger.error(f"Failed to process transaction {tx.get_hash()}: {e}")
-                total_gas_used += 21000  # Base gas for failed transaction
+                self.logger.error(f"❌ Failed to process transaction {i+1}: {e}")
+                total_gas_used += 21000  # Charge gas for failed transaction
+        
+        # Force balance save after processing all transactions
+        self._save_balances()
+        self.logger.info(f"💾 All balances saved to database")
         
         return total_gas_used
     
@@ -875,7 +972,9 @@ class DinariBlockchain:
     
     def get_dinari_balance(self, address: str) -> Decimal:
         """Get DINARI token balance"""
-        return Decimal(self.dinari_balances.get(address, "0"))
+        balance = Decimal(self.dinari_balances.get(address, "0"))
+        self.logger.debug(f"Balance query: {address[:20]}... = {balance} DINARI")
+        return balance
     
     def get_afrocoin_balance(self, address: str) -> Decimal:
         """Get Afrocoin (AFC) balance for an address"""
@@ -896,7 +995,8 @@ class DinariBlockchain:
             "contracts": len(self.contracts),
             "contract_count": self.chain_state.get("contract_count", 0),
             "native_token": "DINARI",
-            "stablecoin": "AFC (Afrocoin)"
+            "stablecoin": "AFC (Afrocoin)",
+            "mining_active": self.mining_active
         }
     
     def add_validator(self, validator_address: str):
@@ -907,5 +1007,7 @@ class DinariBlockchain:
             self.logger.info(f"Validator added: {validator_address}")
     
     def close(self):
-        """Close database connection"""
+        """Close database connection and stop mining"""
+        self.stop_automatic_mining()
         self.db.close()
+        self.logger.info("DinariBlockchain closed")
