@@ -7,6 +7,8 @@ app.py - Fixed Flask API server for Render.com deployment
 import os
 import json
 import time
+import hashlib
+import time
 import logging
 from flask import Flask, request, jsonify
 from flask_cors import CORS
@@ -352,7 +354,7 @@ def afrocoin_info():
     
 @app.route('/rpc', methods=['POST'])
 def rpc_handler():
-    """JSON-RPC 2.0 endpoint"""
+    """Complete JSON-RPC 2.0 endpoint for DinariBlockchain"""
     try:
         data = request.get_json()
         
@@ -368,27 +370,240 @@ def rpc_handler():
         rpc_id = data.get('id', 1)
         
         # Handle RPC methods
-        if method == 'dinari_ping':
-            result = "pong"
-        elif method == 'dinari_getBlockchainInfo':
-            result = blockchain.get_chain_info() if blockchain else {}
-        elif method == 'dinari_getBalance':
-            address = params[0] if params else ""
-            dinari_bal = str(blockchain.get_dinari_balance(address)) if blockchain else "0"
-            afc_bal = str(blockchain.get_afrocoin_balance(address)) if blockchain else "0"
-            result = {"DINARI": dinari_bal, "AFC": afc_bal}
-        else:
+        try:
+            if method == 'dinari_ping':
+                result = "pong"
+                
+            elif method == 'dinari_getBlockchainInfo':
+                if blockchain:
+                    chain_info = blockchain.get_chain_info()
+                    result = {
+                        "network_id": "dinari_mainnet",
+                        "native_token": "DINARI", 
+                        "stablecoin": "AFC",
+                        "height": chain_info.get('height', 0),
+                        "total_transactions": chain_info.get('total_transactions', 0),
+                        "pending_transactions": chain_info.get('pending_transactions', 0),
+                        "validators": chain_info.get('validators', 0),
+                        "contracts": chain_info.get('contracts', 0),
+                        "total_dinari_supply": chain_info.get('total_dinari_supply', '0')
+                    }
+                else:
+                    result = {"error": "Blockchain not initialized"}
+                    
+            elif method == 'dinari_getBalance':
+                if not params:
+                    raise ValueError("Address parameter required")
+                address = params[0]
+                if blockchain:
+                    dinari_bal = str(blockchain.get_dinari_balance(address))
+                    afc_bal = str(blockchain.get_afrocoin_balance(address))
+                    result = {
+                        "address": address,
+                        "DINARI": dinari_bal, 
+                        "AFC": afc_bal
+                    }
+                else:
+                    result = {"DINARI": "0", "AFC": "0"}
+                    
+            elif method == 'dinari_createWallet':
+                wallet_name = params[0] if params else f"wallet_{int(time.time())}"
+                wallet = create_wallet()
+                result = {
+                    "success": True,
+                    "wallet_name": wallet_name,
+                    "message": "Wallet created successfully",
+                    "address": f"dinari1{hashlib.sha256(wallet_name.encode()).hexdigest()[:40]}"
+                }
+                
+            elif method == 'dinari_sendTransaction':
+                if len(params) < 3:
+                    raise ValueError("Required: from_address, to_address, amount")
+                
+                from_addr = params[0]
+                to_addr = params[1] 
+                amount = params[2]
+                gas_price = params[3] if len(params) > 3 else "0.001"
+                data_field = params[4] if len(params) > 4 else ""
+                
+                if blockchain:
+                    tx = Transaction(
+                        from_address=from_addr,
+                        to_address=to_addr,
+                        amount=Decimal(str(amount)),
+                        gas_price=Decimal(str(gas_price)),
+                        gas_limit=21000,
+                        nonce=0,
+                        data=data_field
+                    )
+                    
+                    success = blockchain.add_transaction(tx)
+                    if success:
+                        result = {
+                            "success": True,
+                            "transaction_hash": tx.get_hash(),
+                            "from": from_addr,
+                            "to": to_addr,
+                            "amount": amount,
+                            "gas_price": gas_price
+                        }
+                    else:
+                        result = {"success": False, "error": "Transaction failed"}
+                else:
+                    result = {"success": False, "error": "Blockchain not available"}
+                    
+            elif method == 'dinari_callContract':
+                if len(params) < 3:
+                    raise ValueError("Required: contract_id, function_name, caller")
+                    
+                contract_id = params[0]
+                function_name = params[1]
+                caller = params[2]
+                args = params[3] if len(params) > 3 else {}
+                
+                if contract_manager:
+                    function_data = {
+                        'function': function_name,
+                        'args': args
+                    }
+                    
+                    contract_result = contract_manager.execute_contract(
+                        contract_id=contract_id,
+                        function_data=function_data,
+                        caller=caller,
+                        value=Decimal('0')
+                    )
+                    
+                    result = {
+                        "success": contract_result.get('success', False),
+                        "result": contract_result.get('result', ''),
+                        "gas_used": contract_result.get('gas_used', 0),
+                        "error": contract_result.get('error', None)
+                    }
+                else:
+                    result = {"success": False, "error": "Contract manager not available"}
+                    
+            elif method == 'dinari_getNetworkInfo':
+                if blockchain_node and hasattr(blockchain_node, 'get_network_info'):
+                    network_info = blockchain_node.get_network_info()
+                    result = {
+                        "node_id": NODE_ID,
+                        "connected_peers": network_info.get('connected_peers', 0),
+                        "is_validator": network_info.get('is_validator', False),
+                        "p2p_port": P2P_PORT,
+                        "api_port": PORT
+                    }
+                else:
+                    result = {
+                        "node_id": NODE_ID,
+                        "connected_peers": 0,
+                        "is_validator": False,
+                        "p2p_port": P2P_PORT,
+                        "api_port": PORT
+                    }
+                    
+            elif method == 'dinari_getValidators':
+                if blockchain:
+                    result = blockchain.validators if hasattr(blockchain, 'validators') else []
+                else:
+                    result = []
+                    
+            elif method == 'dinari_mineBlock':
+                validator = params[0] if params else "default_validator"
+                if blockchain:
+                    block = blockchain.create_block(validator)
+                    if block:
+                        result = {
+                            "success": True,
+                            "block_index": block.index,
+                            "block_hash": block.get_hash(),
+                            "validator": validator,
+                            "transactions": len(block.transactions),
+                            "timestamp": block.timestamp
+                        }
+                    else:
+                        result = {"success": False, "error": "No pending transactions"}
+                else:
+                    result = {"success": False, "error": "Blockchain not available"}
+                    
+            elif method == 'dinari_getVersion':
+                result = {
+                    "blockchain_version": "1.0.0",
+                    "api_version": "1.0.0", 
+                    "rpc_version": "2.0",
+                    "network": "dinari_mainnet",
+                    "native_token": "DINARI",
+                    "stablecoin": "AFC"
+                }
+                
+            elif method == 'dinari_getContractInfo':
+                if not params:
+                    raise ValueError("Contract ID required")
+                contract_id = params[0]
+                
+                if contract_manager:
+                    contract = contract_manager.get_contract(contract_id)
+                    if contract:
+                        result = {
+                            "contract_id": contract.contract_id,
+                            "owner": contract.owner,
+                            "contract_type": contract.contract_type,
+                            "created_at": contract.created_at,
+                            "is_active": contract.state.is_active,
+                            "balance": str(contract.state.balance)
+                        }
+                    else:
+                        result = {"error": f"Contract {contract_id} not found"}
+                else:
+                    result = {"error": "Contract manager not available"}
+                    
+            elif method == 'dinari_deployContract':
+                if len(params) < 2:
+                    raise ValueError("Required: contract_code, deployer")
+                    
+                contract_code = params[0]
+                deployer = params[1]
+                init_args = params[2] if len(params) > 2 else {}
+                
+                contract_id = f"contract_{int(time.time())}"
+                
+                if contract_manager:
+                    contract = contract_manager.deploy_contract(
+                        contract_id=contract_id,
+                        code=contract_code,
+                        owner=deployer,
+                        contract_type="general",
+                        initial_state=init_args
+                    )
+                    
+                    result = {
+                        "success": True,
+                        "contract_id": contract_id,
+                        "deployer": deployer,
+                        "contract_address": contract_id
+                    }
+                else:
+                    result = {"success": False, "error": "Contract manager not available"}
+                    
+            else:
+                return jsonify({
+                    "jsonrpc": "2.0",
+                    "error": {"code": -32601, "message": "Method not found"},
+                    "id": rpc_id
+                }), 404
+            
             return jsonify({
                 "jsonrpc": "2.0",
-                "error": {"code": -32601, "message": "Method not found"},
+                "result": result,
                 "id": rpc_id
-            }), 404
-        
-        return jsonify({
-            "jsonrpc": "2.0",
-            "result": result,
-            "id": rpc_id
-        })
+            })
+            
+        except Exception as method_error:
+            return jsonify({
+                "jsonrpc": "2.0",
+                "error": {"code": -32000, "message": str(method_error)},
+                "id": rpc_id
+            }), 500
         
     except Exception as e:
         return jsonify({
