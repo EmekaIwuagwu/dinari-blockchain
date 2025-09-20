@@ -1267,122 +1267,380 @@ def get_stats():
     except Exception as e:
         return jsonify({'error': str(e)}), 500
 
-# Simple web interface
+# Updated web interface with current DinariBlockchain information
 @app.route('/', methods=['GET'])
 def index():
-    """Simple web interface"""
+    """Updated web interface with latest blockchain data"""
     return '''
     <!DOCTYPE html>
     <html>
     <head>
-        <title>DinariBlockchain API</title>
+        <title>DinariBlockchain API - Live Network</title>
         <style>
-            body { font-family: Arial, sans-serif; margin: 40px; background: #f5f5f5; }
-            .container { background: white; padding: 30px; border-radius: 8px; }
-            .status { padding: 10px; margin: 10px 0; border-radius: 4px; }
-            .healthy { background: #d4edda; border: 1px solid #c3e6cb; }
-            .unhealthy { background: #f8d7da; border: 1px solid #f5c6cb; }
-            .endpoint { background: #e9ecef; padding: 10px; margin: 5px 0; font-family: monospace; }
-            .address-format { background: #fff3cd; border: 1px solid #ffeaa7; padding: 15px; border-radius: 4px; margin: 15px 0; }
-            .genesis-info { background: #d1ecf1; border: 1px solid #bee5eb; padding: 15px; border-radius: 4px; margin: 15px 0; }
+            body { 
+                font-family: 'Segoe UI', Arial, sans-serif; 
+                margin: 0; 
+                background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+                color: #333;
+            }
+            .container { 
+                max-width: 1200px;
+                margin: 0 auto;
+                background: white; 
+                border-radius: 15px;
+                box-shadow: 0 10px 30px rgba(0,0,0,0.3);
+                overflow: hidden;
+            }
+            .header {
+                background: linear-gradient(135deg, #1e3c72 0%, #2a5298 100%);
+                color: white;
+                padding: 30px;
+                text-align: center;
+            }
+            .header h1 { margin: 0; font-size: 2.5rem; font-weight: 700; }
+            .subtitle { margin: 10px 0 0 0; font-size: 1.1rem; opacity: 0.9; }
+            .content { padding: 30px; }
+            .status { 
+                padding: 20px; 
+                margin: 20px 0; 
+                border-radius: 10px; 
+                font-weight: 600;
+            }
+            .healthy { 
+                background: linear-gradient(135deg, #4facfe 0%, #00f2fe 100%);
+                color: white;
+            }
+            .unhealthy { 
+                background: linear-gradient(135deg, #fa709a 0%, #fee140 100%);
+                color: white;
+            }
+            .live-stats {
+                display: grid;
+                grid-template-columns: repeat(auto-fit, minmax(200px, 1fr));
+                gap: 15px;
+                margin: 20px 0;
+            }
+            .stat-card {
+                background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+                color: white;
+                padding: 20px;
+                border-radius: 10px;
+                text-align: center;
+            }
+            .stat-value {
+                font-size: 1.8rem;
+                font-weight: 700;
+                margin: 5px 0;
+            }
+            .stat-label {
+                font-size: 0.9rem;
+                opacity: 0.8;
+            }
+            .endpoint { 
+                background: #2d3748;
+                color: #e2e8f0;
+                padding: 12px 15px;
+                margin: 8px 0;
+                border-radius: 6px;
+                font-family: 'Courier New', monospace;
+                font-size: 0.9rem;
+            }
+            .section {
+                margin: 30px 0;
+                background: #f8f9ff;
+                padding: 25px;
+                border-radius: 10px;
+                border-left: 4px solid #667eea;
+            }
+            .section h2 {
+                color: #2a5298;
+                margin: 0 0 20px 0;
+                font-size: 1.4rem;
+            }
+            .token-info {
+                display: grid;
+                grid-template-columns: 1fr 1fr;
+                gap: 20px;
+                margin: 20px 0;
+            }
+            .token-card {
+                background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+                color: white;
+                padding: 25px;
+                border-radius: 10px;
+                text-align: center;
+            }
+            .token-card h3 { margin: 0 0 15px 0; font-size: 1.4rem; }
+            .token-price {
+                font-size: 2.2rem;
+                font-weight: 700;
+                margin: 10px 0;
+                color: #32cd32;
+            }
+            .genesis-grid {
+                display: grid;
+                grid-template-columns: repeat(auto-fit, minmax(280px, 1fr));
+                gap: 15px;
+                margin: 15px 0;
+            }
+            .genesis-address {
+                background: white;
+                border: 2px solid #667eea;
+                padding: 15px;
+                border-radius: 8px;
+                cursor: pointer;
+                transition: all 0.3s ease;
+            }
+            .genesis-address:hover {
+                background: #667eea;
+                color: white;
+                transform: translateY(-2px);
+            }
+            .method { color: #68d391; font-weight: bold; }
+            .endpoint-path { color: #63b3ed; }
+            .price-authority {
+                background: linear-gradient(135deg, #ffa726 0%, #fb8c00 100%);
+                color: white;
+                padding: 20px;
+                border-radius: 10px;
+                margin: 20px 0;
+                text-align: center;
+            }
+            .refresh-btn {
+                background: #667eea;
+                color: white;
+                border: none;
+                padding: 10px 20px;
+                border-radius: 5px;
+                cursor: pointer;
+                font-weight: 600;
+                margin: 10px;
+            }
+            .refresh-btn:hover { background: #5a6fd8; }
         </style>
     </head>
     <body>
         <div class="container">
-            <h1>🌍 DinariBlockchain API</h1>
-            <p>Native DINARI token blockchain with Afrocoin stablecoin support</p>
-            
-            <h2>📊 Status</h2>
-            <div id="status" class="status">Loading...</div>
-            
-            <div class="address-format">
-                <h3>📍 Address Format</h3>
-                <strong>DT-prefixed addresses:</strong> DT + 40 hex characters (42 total length)<br>
-                <strong>Example:</strong> DT1a2b3c4d5e6f7g8h9i0j1k2l3m4n5o6p7q8r9s0t1u2<br>
-                <strong>Validation:</strong> Must start with "DT" followed by exactly 40 hexadecimal characters
+            <div class="header">
+                <h1>🌍 DinariBlockchain API</h1>
+                <p class="subtitle">Native DINARI token blockchain with Afrocoin stablecoin support</p>
+                <p class="subtitle">🏦 Canonical Price Authority for African Blockchain Economics</p>
             </div>
             
-            <div class="genesis-info">
-                <h3>🔑 Genesis Compatibility</h3>
-                <strong>Updated Supply:</strong> 100M DINARI + 200M AFC distributed at genesis<br>
-                <strong>DINARI Distribution:</strong> 30M Treasury, 25M Validators, 20M Development, 15M Community, 10M Reserve<br>
-                <strong>AFC Supply:</strong> 200M tokens in Afrocoin stablecoin contract<br>
-                <strong>Backward Compatible:</strong> Supports transactions from original genesis addresses
+            <div class="content">
+                <h2>📊 Live Network Status</h2>
+                <div id="status" class="status">Loading live data...</div>
+                <button class="refresh-btn" onclick="loadStatus()">🔄 Refresh Status</button>
+                
+                <div class="live-stats" id="live-stats">
+                    <div class="stat-card">
+                        <div class="stat-value" id="block-height">-</div>
+                        <div class="stat-label">Block Height</div>
+                    </div>
+                    <div class="stat-card">
+                        <div class="stat-value" id="dinari-supply">-</div>
+                        <div class="stat-label">DINARI Supply</div>
+                    </div>
+                    <div class="stat-card">
+                        <div class="stat-value" id="afc-supply">-</div>
+                        <div class="stat-label">AFC Supply</div>
+                    </div>
+                    <div class="stat-card">
+                        <div class="stat-value" id="validator-count">-</div>
+                        <div class="stat-label">Active Validators</div>
+                    </div>
+                    <div class="stat-card">
+                        <div class="stat-value" id="contract-count">-</div>
+                        <div class="stat-label">Smart Contracts</div>
+                    </div>
+                    <div class="stat-card">
+                        <div class="stat-value" id="tx-count">-</div>
+                        <div class="stat-label">Total Transactions</div>
+                    </div>
+                </div>
+
+                <div class="price-authority">
+                    <h3>💰 Canonical Price Authority</h3>
+                    <p><strong>DINARI:</strong> $1.00 USD | <strong>AFC:</strong> $1.00 USD</p>
+                    <p>DinariBlockchain Protocol sets official prices - External markets follow our oracle</p>
+                </div>
+
+                <div class="token-info">
+                    <div class="token-card">
+                        <h3>🪙 DINARI Token</h3>
+                        <div class="token-price">$1.00</div>
+                        <p>Native gas token</p>
+                        <p>Current: <span id="dinari-circ">1.93M</span> circulating</p>
+                        <p>Max: 100M total supply</p>
+                    </div>
+                    <div class="token-card">
+                        <h3>🏦 AFC Stablecoin</h3>
+                        <div class="token-price">$1.00</div>
+                        <p>USD-pegged stablecoin</p>
+                        <p>Current: <span id="afc-circ">200M</span> supply</p>
+                        <p>Backed by DINARI collateral</p>
+                    </div>
+                </div>
+                
+                <div class="section">
+                    <h2>📍 Address Format</h2>
+                    <div style="background: #fff3cd; border: 1px solid #ffeaa7; padding: 15px; border-radius: 4px;">
+                        <strong>DT-prefixed addresses:</strong> DT + 40 hex characters (42 total length)<br>
+                        <strong>Example:</strong> DT1qyfe883hey6jrgj2xvk9a3klghvz9z9way2nxvu<br>
+                        <strong>Validation:</strong> Must start with "DT" followed by exactly 40 hexadecimal characters
+                    </div>
+                </div>
+                
+                <div class="section">
+                    <h2>🔑 Genesis Addresses (Click to Check Balance)</h2>
+                    <div class="genesis-grid">
+                        <div class="genesis-address" onclick="checkAddress('DT1qyfe883hey6jrgj2xvk9a3klghvz9z9way2nxvu')">
+                            <div style="font-weight: 600;">Main Treasury (30M DINARI)</div>
+                            <div style="font-size: 0.85rem; color: #666;">DT1qyfe883hey6jrgj2xvk9a3klghvz9z9way2nxvu</div>
+                        </div>
+                        <div class="genesis-address" onclick="checkAddress('DT1sv9m0g077juqa67h64zxzr26k5xu5rcp8c9qvx')">
+                            <div style="font-weight: 600;">Validators Fund (25M DINARI)</div>
+                            <div style="font-size: 0.85rem; color: #666;">DT1sv9m0g077juqa67h64zxzr26k5xu5rcp8c9qvx</div>
+                        </div>
+                        <div class="genesis-address" onclick="checkAddress('DT1cqgze3fqpw0dqh9j8l2dqqyr89c0q5c2jdpg8x')">
+                            <div style="font-weight: 600;">Development Fund (20M DINARI)</div>
+                            <div style="font-size: 0.85rem; color: #666;">DT1cqgze3fqpw0dqh9j8l2dqqyr89c0q5c2jdpg8x</div>
+                        </div>
+                        <div class="genesis-address" onclick="checkAddress('DT1xz2f8l8lh8vqw3r6n4s2k7j9p1d5g8h3m6c4v7')">
+                            <div style="font-weight: 600;">Community Treasury (15M DINARI)</div>
+                            <div style="font-size: 0.85rem; color: #666;">DT1xz2f8l8lh8vqw3r6n4s2k7j9p1d5g8h3m6c4v7</div>
+                        </div>
+                        <div class="genesis-address" onclick="checkAddress('DT1a7b8c9d0e1f2g3h4i5j6k7l8m9n0o1p2q3r4s5')">
+                            <div style="font-weight: 600;">Reserve Fund (10M DINARI)</div>
+                            <div style="font-size: 0.85rem; color: #666;">DT1a7b8c9d0e1f2g3h4i5j6k7l8m9n0o1p2q3r4s5</div>
+                        </div>
+                    </div>
+                </div>
+                
+                <div class="section">
+                    <h2>🔗 REST API Endpoints</h2>
+                    <div class="endpoint"><span class="method">GET</span> <span class="endpoint-path">/health</span> - Health check</div>
+                    <div class="endpoint"><span class="method">GET</span> <span class="endpoint-path">/api/blockchain/info</span> - Blockchain information</div>
+                    <div class="endpoint"><span class="method">GET</span> <span class="endpoint-path">/api/blockchain/balance/{address}</span> - Get DINARI & AFC balance</div>
+                    <div class="endpoint"><span class="method">POST</span> <span class="endpoint-path">/api/blockchain/transaction</span> - Submit transaction</div>
+                    <div class="endpoint"><span class="method">GET</span> <span class="endpoint-path">/api/blockchain/block/{index}</span> - Get block</div>
+                    <div class="endpoint"><span class="method">POST</span> <span class="endpoint-path">/api/contracts/deploy</span> - Deploy contract</div>
+                    <div class="endpoint"><span class="method">POST</span> <span class="endpoint-path">/api/contracts/call</span> - Call contract</div>
+                    <div class="endpoint"><span class="method">GET</span> <span class="endpoint-path">/api/contracts/afrocoin</span> - Afrocoin contract info</div>
+                    <div class="endpoint"><span class="method">POST</span> <span class="endpoint-path">/api/wallet/create</span> - Create wallet</div>
+                    <div class="endpoint"><span class="method">POST</span> <span class="endpoint-path">/api/address/generate</span> - Generate DT address</div>
+                    <div class="endpoint"><span class="method">GET</span> <span class="endpoint-path">/api/address/validate/{address}</span> - Validate DT address</div>
+                    <div class="endpoint"><span class="method">GET</span> <span class="endpoint-path">/api/address/info/{address}</span> - Get address info & balance</div>
+                    <div class="endpoint"><span class="method">GET</span> <span class="endpoint-path">/api/genesis/addresses</span> - Get all genesis addresses</div>
+                    <div class="endpoint"><span class="method">POST</span> <span class="endpoint-path">/api/genesis/fund/{address}</span> - Fund address from genesis</div>
+                    <div class="endpoint"><span class="method">GET</span> <span class="endpoint-path">/api/network/peers</span> - Get peers</div>
+                    <div class="endpoint"><span class="method">GET</span> <span class="endpoint-path">/api/stats</span> - Get statistics</div>
+                    <div class="endpoint"><span class="method">POST</span> <span class="endpoint-path">/rpc</span> - JSON-RPC 2.0 endpoint</div>
+                </div>
+                
+                <div class="section">
+                    <h2>🔧 JSON-RPC Methods</h2>
+                    <div class="endpoint">dinari_createWallet - Create new wallet with DT address</div>
+                    <div class="endpoint">dinari_generateAddress - Generate new DT address</div>
+                    <div class="endpoint">dinari_validateAddress - Validate DT address format</div>
+                    <div class="endpoint">dinari_getBalance - Get balance for DT address</div>
+                    <div class="endpoint">dinari_sendTransaction - Send transaction between DT addresses</div>
+                    <div class="endpoint">dinari_getBlockchainInfo - Get blockchain information</div>
+                    <div class="endpoint">dinari_getGenesisAddresses - Get all genesis addresses</div>
+                    <div class="endpoint">dinari_fundFromGenesis - Fund address from genesis (testing)</div>
+                    <div class="endpoint">dinari_callContract - Call smart contract</div>
+                    <div class="endpoint">dinari_deployContract - Deploy smart contract</div>
+                    <div class="endpoint">dinari_getAfcSupply - Get AFC (Afrocoin) supply information</div>
+                    <div class="endpoint">dinari_getCanonicalPrice - Get canonical DINARI price ($1.00)</div>
+                    <div class="endpoint">dinari_getAfcPrice - Get canonical AFC price ($1.00)</div>
+                    <div class="endpoint">dinari_getDualTokenStatus - Get both token price feeds</div>
+                </div>
             </div>
-            
-            <h2>🔗 API Endpoints</h2>
-            <div class="endpoint">GET /health - Health check</div>
-            <div class="endpoint">GET /api/blockchain/info - Blockchain information</div>
-            <div class="endpoint">GET /api/blockchain/balance/{address} - Get DINARI & AFC balance</div>
-            <div class="endpoint">POST /api/blockchain/transaction - Submit transaction</div>
-            <div class="endpoint">GET /api/blockchain/block/{index} - Get block</div>
-            <div class="endpoint">POST /api/contracts/deploy - Deploy contract</div>
-            <div class="endpoint">POST /api/contracts/call - Call contract</div>
-            <div class="endpoint">GET /api/contracts/afrocoin - Afrocoin contract info</div>
-            <div class="endpoint">POST /api/wallet/create - Create wallet</div>
-            <div class="endpoint">POST /api/address/generate - Generate DT address</div>
-            <div class="endpoint">GET /api/address/validate/{address} - Validate DT address</div>
-            <div class="endpoint">GET /api/address/info/{address} - Get address info & balance</div>
-            <div class="endpoint">GET /api/genesis/addresses - Get all genesis addresses</div>
-            <div class="endpoint">POST /api/genesis/fund/{address} - Fund address from genesis</div>
-            <div class="endpoint">GET /api/network/peers - Get peers</div>
-            <div class="endpoint">GET /api/stats - Get statistics</div>
-            <div class="endpoint">POST /rpc - JSON-RPC 2.0 endpoint</div>
-            
-            <h2>💰 Token Information</h2>
-            <div class="endpoint">Native Token: DINARI (100M supply, pays gas fees)</div>
-            <div class="endpoint">Stablecoin: AFC (200M supply, Afrocoin USD-pegged)</div>
-            <div class="endpoint">Address Format: DT-prefixed (42 characters)</div>
-            <div class="endpoint">⚡ Auto-Mining: Active (15 second intervals)</div>
-            <div class="endpoint">👥 Validators: Auto-created DT addresses</div>
-            <div class="endpoint">🔑 Genesis Addresses: 5 addresses with 100M DINARI total</div>
-            
-            <h2>🔧 JSON-RPC Methods</h2>
-            <div class="endpoint">dinari_createWallet - Create new wallet with DT address</div>
-            <div class="endpoint">dinari_generateAddress - Generate new DT address</div>
-            <div class="endpoint">dinari_validateAddress - Validate DT address format</div>
-            <div class="endpoint">dinari_getBalance - Get balance for DT address</div>
-            <div class="endpoint">dinari_sendTransaction - Send transaction between DT addresses</div>
-            <div class="endpoint">dinari_getBlockchainInfo - Get blockchain information</div>
-            <div class="endpoint">dinari_getGenesisAddresses - Get all genesis addresses</div>
-            <div class="endpoint">dinari_fundFromGenesis - Fund address from genesis (testing)</div>
-            <div class="endpoint">dinari_callContract - Call smart contract</div>
-            <div class="endpoint">dinari_deployContract - Deploy smart contract</div>
-            <div class="endpoint">dinari_getAfcSupply - Get AFC (Afrocoin) supply information</div>
-            
-            <script>
-                fetch('/health')
-                    .then(r => r.json())
-                    .then(data => {
-                        const statusEl = document.getElementById('status');
-                        if (data.status === 'healthy') {
-                            statusEl.className = 'status healthy';
-                            let statusText = `✅ Healthy - Node: ${data.node_id} | Port: ${data.api_port} | Address: ${data.address_format}`;
-                            
-                            if (data.blockchain) {
-                                statusText += ` | Height: ${data.blockchain.height} | Validators: ${data.blockchain.validators || 0}`;
-                            }
-                            
-                            if (data.genesis_compatibility) {
-                                statusText += ` | Genesis: ${data.known_genesis_addresses} addresses`;
-                            }
-                            
-                            if (data.network && data.network.status) {
-                                statusText += ` | P2P: ${data.network.status}`;
-                            }
-                            
-                            statusEl.innerHTML = statusText;
-                        } else {
-                            statusEl.className = 'status unhealthy';
-                            statusEl.innerHTML = `❌ Unhealthy - ${data.error || 'Unknown error'}`;
-                        }
-                    })
-                    .catch(e => {
-                        document.getElementById('status').innerHTML = `❌ Connection Error: ${e}`;
-                        document.getElementById('status').className = 'status unhealthy';
-                    });
-            </script>
         </div>
+        
+        <script>
+            // Load live blockchain status
+            async function loadStatus() {
+                try {
+                    const [healthResponse, infoResponse] = await Promise.all([
+                        fetch('/health'),
+                        fetch('/api/blockchain/info')
+                    ]);
+                    
+                    const health = await healthResponse.json();
+                    const info = await infoResponse.json();
+                    
+                    const statusEl = document.getElementById('status');
+                    
+                    if (health.status === 'healthy') {
+                        statusEl.className = 'status healthy';
+                        statusEl.innerHTML = `
+                            ✅ <strong>Network Healthy</strong><br>
+                            Node: ${health.node_id} | API: Port ${health.api_port} | 
+                            P2P: ${health.network?.status || 'Active'} | 
+                            Mining: ${info.mining_active ? 'Active' : 'Inactive'} | 
+                            Address Format: ${health.address_format}
+                        `;
+                        
+                        // Update live stats
+                        if (info) {
+                            document.getElementById('block-height').textContent = info.height || 0;
+                            document.getElementById('dinari-supply').textContent = formatSupply(info.total_dinari_supply || 0);
+                            document.getElementById('afc-supply').textContent = '200M'; // AFC total supply
+                            document.getElementById('validator-count').textContent = info.validators || 0;
+                            document.getElementById('contract-count').textContent = info.contracts || 0;
+                            document.getElementById('tx-count').textContent = info.total_transactions || 0;
+                            
+                            // Update circulating supplies
+                            document.getElementById('dinari-circ').textContent = formatSupply(info.total_dinari_supply || 0);
+                        }
+                    } else {
+                        statusEl.className = 'status unhealthy';
+                        statusEl.innerHTML = `❌ <strong>Network Error:</strong> ${health.error || 'Unknown error'}`;
+                    }
+                } catch (error) {
+                    document.getElementById('status').innerHTML = `❌ <strong>Connection Error:</strong> ${error.message}`;
+                    document.getElementById('status').className = 'status unhealthy';
+                }
+            }
+            
+            // Format supply numbers
+            function formatSupply(supply) {
+                const num = parseFloat(supply);
+                if (num >= 1000000) {
+                    return (num / 1000000).toFixed(1) + 'M';
+                } else if (num >= 1000) {
+                    return (num / 1000).toFixed(1) + 'K';
+                } else {
+                    return num.toLocaleString();
+                }
+            }
+            
+            // Check address balance
+            async function checkAddress(address) {
+                try {
+                    const response = await fetch(`/api/address/info/${address}`);
+                    const data = await response.json();
+                    
+                    if (response.ok) {
+                        alert(`Address: ${address.substring(0, 20)}...
+DINARI Balance: ${parseFloat(data.balances?.DINARI || 0).toLocaleString()}
+AFC Balance: ${parseFloat(data.balances?.AFC || 0).toLocaleString()}
+Genesis Address: ${data.is_genesis ? 'Yes' : 'No'}`);
+                    } else {
+                        alert(`Error checking address: ${data.error}`);
+                    }
+                } catch (error) {
+                    alert(`Connection error: ${error.message}`);
+                }
+            }
+            
+            // Load status on page load
+            loadStatus();
+            
+            // Auto-refresh every 30 seconds
+            setInterval(loadStatus, 30000);
+        </script>
     </body>
     </html>
     '''
