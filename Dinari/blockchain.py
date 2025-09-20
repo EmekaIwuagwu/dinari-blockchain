@@ -13,6 +13,8 @@ from typing import List, Dict, Optional, Any, Union
 from dataclasses import dataclass, asdict
 from decimal import Decimal, getcontext
 import logging
+import random  # For demo price simulation 
+import statistics  # For price averaging
 from .database import DinariLevelDB
 
 # Set precision for financial calculations
@@ -241,6 +243,55 @@ class SmartContract:
                 'timestamp': int(time.time())
             }
     
+    def _update_usd_price_oracle(self, args: Dict[str, Any], caller: str) -> Dict[str, Any]:
+        """Update AFC/USD price from external oracles"""
+        new_price = args.get('price')
+        oracle_source = args.get('source', 'manual')
+        confidence = Decimal(str(args.get('confidence', '1.0')))
+    
+        if not new_price:
+            raise ValueError("Price required")
+    
+        new_price = Decimal(str(new_price))
+    
+        # Validate price range (basic sanity check)
+        if new_price < Decimal('0.5') or new_price > Decimal('2.0'):
+            raise ValueError(f"Price {new_price} outside acceptable range (0.5 - 2.0 USD)")
+    
+        # Store price history
+        price_history = self.state.variables.get('price_history', [])
+        price_entry = {
+            'price': str(new_price),
+            'timestamp': int(time.time()),
+            'source': oracle_source,
+            'confidence': str(confidence),
+            'caller': caller
+        }
+        price_history.append(price_entry)
+    
+        # Keep only last 100 price updates
+        if len(price_history) > 100:
+            price_history = price_history[-100:]
+    
+        # Update current price
+        old_price = Decimal(self.state.variables.get('price_oracle', '1.0'))
+        self.state.variables['price_oracle'] = str(new_price)
+        self.state.variables['price_history'] = price_history
+        self.state.variables['last_price_update'] = int(time.time())
+    
+        # Calculate deviation
+        deviation = abs(new_price - Decimal('1.0')) / Decimal('1.0')
+    
+        return {
+            'success': True,
+            'old_price': str(old_price),
+            'new_price': str(new_price),
+            'deviation_percent': str(deviation * 100),
+            'source': oracle_source,
+            'confidence': str(confidence),
+            'requires_intervention': deviation > Decimal('0.02')  # 2% threshold
+        }
+    
     def _execute_afrocoin_function(self, function_name: str, args: Dict[str, Any], caller: str, value: Decimal) -> Any:
         """Execute Afrocoin stablecoin functions on DinariBlockchain"""
         
@@ -254,6 +305,12 @@ class SmartContract:
             return self._afrocoin_approve(args, caller)
         elif function_name == "transfer_from_afc":
             return self._afrocoin_transfer_from(args, caller)
+        elif function_name == "update_usd_price":
+            return self._update_usd_price_oracle(args, caller)
+        elif function_name == "check_peg_deviation":
+            return self._check_peg_deviation()
+        elif function_name == "execute_rebase":
+            return self._execute_algorithmic_rebase(args, caller)
         elif function_name == "deposit_dinari_collateral":
             return self._deposit_dinari_collateral(args, caller, value)
         elif function_name == "withdraw_dinari_collateral":
@@ -272,6 +329,393 @@ class SmartContract:
             return self.state.variables["collateral_assets"]["DINARI"]["price"]
         else:
             raise ValueError(f"Unknown Afrocoin function: {function_name}")
+        
+    
+    def _check_peg_deviation(self) -> Dict[str, Any]:
+        """Check current peg deviation and recommend actions"""
+        current_price = Decimal(self.state.variables.get('price_oracle', '1.0'))
+        target_price = Decimal('1.0')
+        
+        deviation = abs(current_price - target_price) / target_price
+        deviation_percent = deviation * 100
+        
+        # Define intervention thresholds
+        minor_threshold = Decimal('0.01')   # 1% - monitor
+        major_threshold = Decimal('0.02')   # 2% - intervene
+        critical_threshold = Decimal('0.05') # 5% - emergency
+        
+        if deviation <= minor_threshold:
+            status = "STABLE"
+            action = "none"
+            urgency = "low"
+        elif deviation <= major_threshold:
+            status = "MINOR_DEVIATION"
+            action = "algorithmic_rebase"
+            urgency = "medium"
+        elif deviation <= critical_threshold:
+            status = "MAJOR_DEVIATION" 
+            action = "stability_intervention"
+            urgency = "high"
+        else:
+            status = "CRITICAL_DEVIATION"
+            action = "emergency_stabilization"
+            urgency = "critical"
+        
+        return {
+            'current_price': str(current_price),
+            'target_price': str(target_price),
+            'deviation_percent': str(deviation_percent),
+            'status': status,
+            'recommended_action': action,
+            'urgency': urgency,
+            'last_update': self.state.variables.get('last_price_update', 0),
+            'total_supply': self.state.variables.get('total_supply', '0')
+        }
+    
+
+    def _execute_algorithmic_rebase(self, args: Dict[str, Any], caller: str) -> Dict[str, Any]:
+        """Execute algorithmic supply rebase to restore USD peg"""
+        current_price = Decimal(self.state.variables.get('price_oracle', '1.0'))
+        target_price = Decimal('1.0')
+        current_supply = Decimal(self.state.variables.get('total_supply', '0'))
+        
+        # Calculate required supply adjustment
+        price_ratio = current_price / target_price
+        
+        # Rebase parameters
+        max_rebase_percent = Decimal('0.10')  # Max 10% per rebase
+        rebase_factor = Decimal('0.5')  # 50% of price deviation
+        
+        if current_price > target_price:
+            # AFC overvalued -> increase supply
+            supply_increase_needed = (price_ratio - 1) * rebase_factor
+            supply_increase = min(supply_increase_needed, max_rebase_percent)
+            new_supply = current_supply * (1 + supply_increase)
+            action = "EXPAND"
+            
+        elif current_price < target_price:
+            # AFC undervalued -> decrease supply  
+            supply_decrease_needed = (1 - price_ratio) * rebase_factor
+            supply_decrease = min(supply_decrease_needed, max_rebase_percent)
+            new_supply = current_supply * (1 - supply_decrease)
+            action = "CONTRACT"
+            
+        else:
+            return {
+                'success': False,
+                'reason': 'No rebase needed - price at target'
+            }
+        
+        # Check rebase cooldown (prevent rapid rebases)
+        last_rebase = self.state.variables.get('last_rebase_time', 0)
+        cooldown_period = 3600  # 1 hour cooldown
+        current_time = int(time.time())
+        
+        if current_time - last_rebase < cooldown_period:
+            return {
+                'success': False,
+                'reason': f'Rebase cooldown active. {cooldown_period - (current_time - last_rebase)} seconds remaining'
+            }
+        
+        # Execute rebase by proportionally adjusting all balances
+        old_supply = current_supply
+        supply_ratio = new_supply / old_supply
+        
+        # Update all AFC balances proportionally
+        afc_balances = self.state.variables.get('balances', {})
+        updated_balances = {}
+        
+        for address, balance_str in afc_balances.items():
+            old_balance = Decimal(balance_str)
+            new_balance = old_balance * supply_ratio
+            updated_balances[address] = str(new_balance)
+        
+        # Update total supply and balances
+        self.state.variables['total_supply'] = str(new_supply)
+        self.state.variables['balances'] = updated_balances
+        self.state.variables['last_rebase_time'] = current_time
+        
+        # Record rebase event
+        rebase_history = self.state.variables.get('rebase_history', [])
+        rebase_event = {
+            'timestamp': current_time,
+            'action': action,
+            'old_supply': str(old_supply),
+            'new_supply': str(new_supply),
+            'supply_change_percent': str((new_supply - old_supply) / old_supply * 100),
+            'price_before': str(current_price),
+            'target_price': str(target_price),
+            'triggered_by': caller
+        }
+        rebase_history.append(rebase_event)
+        
+        # Keep only last 50 rebase events
+        if len(rebase_history) > 50:
+            rebase_history = rebase_history[-50:]
+        
+        self.state.variables['rebase_history'] = rebase_history
+        
+        return {
+            'success': True,
+            'action': action,
+            'old_supply': str(old_supply),
+            'new_supply': str(new_supply),
+            'supply_change_percent': str((new_supply - old_supply) / old_supply * 100),
+            'price_before': str(current_price),
+            'target_price': str(target_price),
+            'rebase_ratio': str(supply_ratio),
+            'addresses_affected': len(updated_balances)
+        }
+    
+
+    def _automatic_peg_stabilization(self, caller: str) -> Dict[str, Any]:
+        """Automatic multi-layer peg stabilization"""
+        current_price = Decimal(self.state.variables.get('price_oracle', '1.0'))
+        deviation_check = self._check_peg_deviation()
+        
+        interventions = []
+        
+        # Layer 1: Algorithmic rebase
+        if deviation_check['urgency'] in ['medium', 'high', 'critical']:
+            rebase_result = self._execute_algorithmic_rebase({}, caller)
+            interventions.append({
+                'type': 'algorithmic_rebase',
+                'result': rebase_result
+            })
+        
+        # Layer 2: Collateral ratio adjustment
+        if deviation_check['urgency'] in ['high', 'critical']:
+            collateral_result = self._adjust_collateral_requirements(current_price)
+            interventions.append({
+                'type': 'collateral_adjustment',
+                'result': collateral_result
+            })
+        
+        # Layer 3: Stability fee adjustment
+        if deviation_check['urgency'] == 'critical':
+            fee_result = self._adjust_stability_fees(current_price)
+            interventions.append({
+                'type': 'stability_fee_adjustment', 
+                'result': fee_result
+            })
+        
+        return {
+            'success': True,
+            'price_status': deviation_check,
+            'interventions_executed': len(interventions),
+            'interventions': interventions,
+            'timestamp': int(time.time())
+        }
+    
+
+    def _adjust_collateral_requirements(self, current_price: Decimal) -> Dict[str, Any]:
+        """Adjust collateral ratios based on price deviation"""
+        target_price = Decimal('1.0')
+        
+        if current_price < target_price:
+            # Undervalued -> increase collateral requirements (tighten supply)
+            for asset_name, asset_data in self.state.variables['collateral_assets'].items():
+                current_ratio = Decimal(asset_data['ratio'])
+                new_ratio = min(current_ratio * Decimal('1.1'), Decimal('300'))  # Max 300%
+                asset_data['ratio'] = str(new_ratio)
+            action = "INCREASED"
+            
+        else:
+            # Overvalued -> decrease collateral requirements (loosen supply)
+            for asset_name, asset_data in self.state.variables['collateral_assets'].items():
+                current_ratio = Decimal(asset_data['ratio'])
+                new_ratio = max(current_ratio * Decimal('0.95'), Decimal('120'))  # Min 120%
+                asset_data['ratio'] = str(new_ratio)
+            action = "DECREASED"
+        
+        return {
+            'action': action,
+            'current_price': str(current_price),
+            'target_price': str(target_price),
+            'new_ratios': {name: data['ratio'] for name, data in self.state.variables['collateral_assets'].items()}
+        }
+    
+
+    def _adjust_stability_fees(self, current_price: Decimal) -> Dict[str, Any]:
+        """Adjust stability fees to incentivize peg restoration"""
+        current_fee = Decimal(self.state.variables.get('stability_fee', '0.5'))
+        
+        if current_price < Decimal('1.0'):
+            # Undervalued -> lower fees to encourage minting
+            new_fee = max(current_fee * Decimal('0.8'), Decimal('0.1'))
+            action = "DECREASED"
+        else:
+            # Overvalued -> raise fees to discourage minting
+            new_fee = min(current_fee * Decimal('1.2'), Decimal('5.0'))
+            action = "INCREASED"
+        
+        self.state.variables['stability_fee'] = str(new_fee)
+        
+        return {
+            'action': action,
+            'old_fee': str(current_fee),
+            'new_fee': str(new_fee),
+            'current_price': str(current_price)
+        }
+    
+
+    def _emergency_stabilization(self, caller: str) -> Dict[str, Any]:
+        """Emergency stabilization for critical depegging"""
+        if caller != self.state.owner and caller != "system":
+            raise ValueError("Only owner or system can trigger emergency stabilization")
+        
+        current_price = Decimal(self.state.variables.get('price_oracle', '1.0'))
+        deviation = abs(current_price - Decimal('1.0')) / Decimal('1.0')
+        
+        if deviation < Decimal('0.05'):  # Less than 5%
+            return {
+                'success': False,
+                'reason': 'Deviation not critical enough for emergency measures'
+            }
+        
+        emergency_actions = []
+        
+        # 1. Aggressive rebase (higher limits)
+        old_max_rebase = Decimal('0.10')
+        emergency_max_rebase = Decimal('0.25')  # Allow 25% rebase
+        
+        # Temporarily modify rebase parameters
+        original_supply = Decimal(self.state.variables.get('total_supply', '0'))
+        
+        if current_price > Decimal('1.0'):
+            # Emergency supply expansion
+            emergency_expansion = min(deviation * Decimal('0.8'), emergency_max_rebase)
+            new_supply = original_supply * (1 + emergency_expansion)
+            action = "EMERGENCY_EXPAND"
+        else:
+            # Emergency supply contraction
+            emergency_contraction = min(deviation * Decimal('0.8'), emergency_max_rebase)
+            new_supply = original_supply * (1 - emergency_contraction)
+            action = "EMERGENCY_CONTRACT"
+        
+        # Execute emergency rebase
+        self._execute_emergency_rebase(new_supply, action)
+        emergency_actions.append(f"{action}: {original_supply} -> {new_supply}")
+        
+        # 2. Pause minting if severely overvalued
+        if current_price > Decimal('1.10'):  # 10% overvalued
+            self.state.variables['minting_paused'] = True
+            emergency_actions.append("MINTING_PAUSED")
+        
+        # 3. Adjust liquidation threshold
+        if current_price < Decimal('0.90'):  # 10% undervalued
+            old_threshold = self.state.variables.get('liquidation_threshold', '120')
+            self.state.variables['liquidation_threshold'] = '110'  # Lower threshold
+            emergency_actions.append(f"LIQUIDATION_THRESHOLD: {old_threshold} -> 110")
+        
+        # Record emergency event
+        emergency_history = self.state.variables.get('emergency_history', [])
+        emergency_event = {
+            'timestamp': int(time.time()),
+            'trigger_price': str(current_price),
+            'deviation_percent': str(deviation * 100),
+            'actions': emergency_actions,
+            'triggered_by': caller
+        }
+        emergency_history.append(emergency_event)
+        self.state.variables['emergency_history'] = emergency_history
+        
+        return {
+            'success': True,
+            'emergency_triggered': True,
+            'deviation_percent': str(deviation * 100),
+            'actions_taken': emergency_actions,
+            'new_supply': str(new_supply),
+            'timestamp': int(time.time())
+        }
+
+
+    def _execute_emergency_rebase(self, new_supply: Decimal, action: str):
+        """Execute emergency rebase without cooldown restrictions"""
+        current_supply = Decimal(self.state.variables.get('total_supply', '0'))
+        supply_ratio = new_supply / current_supply if current_supply > 0 else Decimal('1')
+        
+        # Update all balances proportionally
+        afc_balances = self.state.variables.get('balances', {})
+        for address, balance_str in afc_balances.items():
+            old_balance = Decimal(balance_str)
+            new_balance = old_balance * supply_ratio
+            afc_balances[address] = str(new_balance)
+        
+        # Update supply
+        self.state.variables['total_supply'] = str(new_supply)
+        self.state.variables['balances'] = afc_balances
+        self.state.variables['last_emergency_rebase'] = int(time.time())
+
+    
+    def _get_stability_metrics(self) -> Dict[str, Any]:
+        """Get comprehensive stability metrics for monitoring"""
+        current_price = Decimal(self.state.variables.get('price_oracle', '1.0'))
+        total_supply = Decimal(self.state.variables.get('total_supply', '0'))
+        
+        # Calculate metrics
+        deviation = abs(current_price - Decimal('1.0')) / Decimal('1.0')
+        
+        # Collateral metrics
+        total_collateral_value = Decimal('0')
+        for asset_name, asset_data in self.state.variables.get('collateral_assets', {}).items():
+            deposited = Decimal(asset_data.get('deposited', '0'))
+            price = Decimal(asset_data.get('price', '0'))
+            total_collateral_value += deposited * price
+        
+        collateralization_ratio = (total_collateral_value / total_supply * 100) if total_supply > 0 else Decimal('0')
+        
+        # Recent activity
+        price_history = self.state.variables.get('price_history', [])
+        rebase_history = self.state.variables.get('rebase_history', [])
+        emergency_history = self.state.variables.get('emergency_history', [])
+        
+        return {
+            'current_price': str(current_price),
+            'target_price': '1.0',
+            'deviation_percent': str(deviation * 100),
+            'total_supply': str(total_supply),
+            'total_collateral_value_usd': str(total_collateral_value),
+            'collateralization_ratio': str(collateralization_ratio),
+            'stability_fee': self.state.variables.get('stability_fee', '0.5'),
+            'minting_paused': self.state.variables.get('minting_paused', False),
+            'last_price_update': self.state.variables.get('last_price_update', 0),
+            'last_rebase_time': self.state.variables.get('last_rebase_time', 0),
+            'price_updates_count': len(price_history),
+            'rebases_count': len(rebase_history),
+            'emergency_events_count': len(emergency_history)
+        }
+    
+    def _simulate_external_price_feeds(self) -> Dict[str, Any]:
+        """Simulate external price feeds for testing (remove in production)"""
+        # This simulates getting prices from external sources
+        base_price = Decimal('1.0')
+        
+        # Simulate various market conditions
+        scenarios = {
+            'stable': (0.999, 1.001),
+            'minor_deviation': (0.98, 1.02),
+            'major_deviation': (0.95, 1.05),
+            'crisis': (0.85, 1.15)
+        }
+        
+        # Randomly pick scenario (in production, this would be real price feeds)
+        scenario = random.choice(list(scenarios.keys()))
+        price_range = scenarios[scenario]
+        simulated_price = Decimal(str(random.uniform(price_range[0], price_range[1])))
+        
+        # Update price
+        self.state.variables['price_oracle'] = str(simulated_price)
+        self.state.variables['last_price_update'] = int(time.time())
+        
+        return {
+            'scenario': scenario,
+            'simulated_price': str(simulated_price),
+            'price_range': price_range,
+            'deviation_from_peg': str(abs(simulated_price - base_price) / base_price * 100)
+        }
+
+
     
     def _deposit_dinari_collateral(self, args: Dict[str, Any], caller: str, dinari_amount: Decimal) -> str:
         """Deposit DINARI tokens as collateral to mint AFC"""
