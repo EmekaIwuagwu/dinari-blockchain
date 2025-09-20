@@ -244,7 +244,295 @@ class SmartContract:
                 'gas_used': 21000,  # Base gas for failed transaction
                 'timestamp': int(time.time())
             }
+        
+    def _automatic_dinari_peg_stabilization(self, caller: str) -> Dict[str, Any]:
+        """Automatic DINARI peg stabilization"""
+        current_price = Decimal(self.state.variables.get('dinari_current_price', '1.0'))
+        deviation_check = self._check_dinari_peg_deviation()
+        
+        interventions = []
+        
+        # Execute DINARI rebase if needed
+        if deviation_check['urgency'] in ['medium', 'high', 'critical']:
+            rebase_result = self._execute_dinari_algorithmic_rebase({}, caller)
+            interventions.append({
+                'type': 'dinari_algorithmic_rebase',
+                'result': rebase_result
+            })
+        
+        return {
+            'success': True,
+            'price_status': deviation_check,
+            'interventions_executed': len(interventions),
+            'interventions': interventions,
+            'timestamp': int(time.time()),
+            'currency': 'DINARI'
+        }
+
+    def _execute_dinari_algorithmic_rebase(self, args: Dict[str, Any], caller: str) -> Dict[str, Any]:
+            """Execute algorithmic DINARI supply rebase to restore $1.00 USD peg"""
+            current_price = Decimal(self.state.variables.get('dinari_current_price', '1.0'))
+            target_price = Decimal('1.0')
+            
+            # Get current DINARI supply from blockchain
+            if not hasattr(self, 'blockchain'):
+                return {'success': False, 'reason': 'Cannot access blockchain instance'}
+            
+            current_supply = sum(Decimal(balance) for balance in self.blockchain.dinari_balances.values())
+            
+            if current_supply <= 0:
+                return {'success': False, 'reason': 'No DINARI supply to rebase'}
+            
+            # Calculate required supply adjustment
+            price_ratio = current_price / target_price
+            
+            # Rebase parameters for DINARI
+            max_rebase_percent = Decimal('0.10')  # Max 10% per rebase
+            rebase_factor = Decimal('0.5')  # 50% of price deviation
+            
+            if current_price > target_price:
+                # DINARI overvalued -> increase supply
+                supply_increase_needed = (price_ratio - 1) * rebase_factor
+                supply_increase = min(supply_increase_needed, max_rebase_percent)
+                new_supply = current_supply * (1 + supply_increase)
+                action = "EXPAND"
+                
+            elif current_price < target_price:
+                # DINARI undervalued -> decrease supply  
+                supply_decrease_needed = (1 - price_ratio) * rebase_factor
+                supply_decrease = min(supply_decrease_needed, max_rebase_percent)
+                new_supply = current_supply * (1 - supply_decrease)
+                action = "CONTRACT"
+                
+            else:
+                return {'success': False, 'reason': 'No rebase needed - price at target'}
+            
+            # Check rebase cooldown
+            last_rebase = self.state.variables.get('last_dinari_rebase_time', 0)
+            cooldown_period = 3600  # 1 hour cooldown
+            current_time = int(time.time())
+            
+            if current_time - last_rebase < cooldown_period:
+                return {
+                    'success': False,
+                    'reason': f'DINARI rebase cooldown active. {cooldown_period - (current_time - last_rebase)} seconds remaining'
+                }
+            
+            # Execute DINARI rebase by adjusting all balances proportionally
+            old_supply = current_supply
+            supply_ratio = new_supply / old_supply
+            
+            # Update all DINARI balances proportionally
+            updated_balances = {}
+            for address, balance_str in self.blockchain.dinari_balances.items():
+                old_balance = Decimal(balance_str)
+                new_balance = old_balance * supply_ratio
+                updated_balances[address] = str(new_balance)
+            
+            # Apply the rebase to blockchain
+            self.blockchain.dinari_balances = updated_balances
+            
+            # Update total supply in chain state
+            self.blockchain.chain_state['total_dinari_supply'] = str(new_supply)
+            
+            # Save to database
+            self.blockchain._save_balances()
+            self.blockchain._save_chain_state()
+            
+            # Record rebase event
+            self.state.variables['last_dinari_rebase_time'] = current_time
+            dinari_rebase_history = self.state.variables.get('dinari_rebase_history', [])
+            rebase_event = {
+                'timestamp': current_time,
+                'action': action,
+                'old_supply': str(old_supply),
+                'new_supply': str(new_supply),
+                'supply_change_percent': str((new_supply - old_supply) / old_supply * 100),
+                'price_before': str(current_price),
+                'target_price': str(target_price),
+                'triggered_by': caller
+            }
+            dinari_rebase_history.append(rebase_event)
+            
+            # Keep only last 50 rebase events
+            if len(dinari_rebase_history) > 50:
+                dinari_rebase_history = dinari_rebase_history[-50:]
+            
+            self.state.variables['dinari_rebase_history'] = dinari_rebase_history
+            
+            return {
+                'success': True,
+                'action': action,
+                'old_supply': str(old_supply),
+                'new_supply': str(new_supply),
+                'supply_change_percent': str((new_supply - old_supply) / old_supply * 100),
+                'price_before': str(current_price),
+                'target_price': str(target_price),
+                'rebase_ratio': str(supply_ratio),
+                'addresses_affected': len(updated_balances),
+                'currency': 'DINARI'
+            }
+
+    def _get_dinari_stability_metrics(self) -> Dict[str, Any]:
+        """Get comprehensive DINARI stability metrics"""
+        current_price = Decimal(self.state.variables.get('dinari_current_price', '1.0'))
+        
+        # Get total DINARI supply
+        total_supply = Decimal('0')
+        if hasattr(self, 'blockchain'):
+            total_supply = sum(Decimal(balance) for balance in self.blockchain.dinari_balances.values())
+        
+        # Calculate metrics
+        deviation = abs(current_price - Decimal('1.0')) / Decimal('1.0')
+        
+        # Recent activity
+        price_history = self.state.variables.get('dinari_price_history', [])
+        rebase_history = self.state.variables.get('dinari_rebase_history', [])
+        
+        return {
+            'current_price': str(current_price),
+            'target_price': '1.0',
+            'deviation_percent': str(deviation * 100),
+            'total_supply': str(total_supply),
+            'currency': 'DINARI',
+            'last_price_update': self.state.variables.get('last_dinari_auto_update', 0),
+            'last_rebase_time': self.state.variables.get('last_dinari_rebase_time', 0),
+            'price_updates_count': len(price_history),
+            'rebases_count': len(rebase_history),
+            'api_status': 'active' if price_history else 'inactive'
+        }
     
+    def _check_dinari_peg_deviation(self) -> Dict[str, Any]:
+        """Check DINARI peg deviation from $1.00 USD"""
+        current_price = Decimal(self.state.variables.get('dinari_current_price', '1.0'))
+        target_price = Decimal('1.0')
+            
+        deviation = abs(current_price - target_price) / target_price
+        deviation_percent = deviation * 100
+            
+        # Define intervention thresholds for DINARI
+        minor_threshold = Decimal('0.01')   # 1% - monitor
+        major_threshold = Decimal('0.02')   # 2% - intervene
+        critical_threshold = Decimal('0.05') # 5% - emergency
+            
+        if deviation <= minor_threshold:
+            status = "STABLE"
+            action = "none"
+            urgency = "low"
+        elif deviation <= major_threshold:
+            status = "MINOR_DEVIATION"
+            action = "algorithmic_rebase"
+            urgency = "medium"
+        elif deviation <= critical_threshold:
+            status = "MAJOR_DEVIATION" 
+            action = "stability_intervention"
+            urgency = "high"
+        else:
+            status = "CRITICAL_DEVIATION"
+            action = "emergency_stabilization"
+            urgency = "critical"
+            
+        # Get current total DINARI supply
+        total_supply = str(sum(Decimal(balance) for balance in self.blockchain.dinari_balances.values()) if hasattr(self, 'blockchain') else Decimal('0'))
+            
+        return {
+                'current_price': str(current_price),
+                'target_price': str(target_price),
+                'deviation_percent': str(deviation_percent),
+                'status': status,
+                'recommended_action': action,
+                'urgency': urgency,
+                'last_update': self.state.variables.get('last_dinari_auto_update', 0),
+                'total_supply': total_supply,
+                'currency': 'DINARI'
+            }
+
+    def _auto_update_dinari_price_from_api(self, caller: str = "system") -> Dict[str, Any]:
+            """Automatically update DINARI price from external APIs"""
+            # Check if enough time has passed since last update
+            last_update = self.state.variables.get('last_dinari_auto_update', 0)
+            current_time = int(time.time())
+            update_cooldown = 60  # 60 seconds between API calls
+            
+            if current_time - last_update < update_cooldown:
+                return {
+                    'success': False,
+                    'reason': f'Update cooldown active. {update_cooldown - (current_time - last_update)} seconds remaining'
+                }
+            
+            # Fetch DINARI price from APIs
+            new_price = self._fetch_dinari_price_from_apis()
+            
+            if new_price is None:
+                return {
+                    'success': False,
+                    'reason': 'Failed to fetch DINARI price from external APIs'
+                }
+            
+            # Update DINARI price oracle
+            old_price = Decimal(self.state.variables.get('dinari_current_price', '1.0'))
+            self.state.variables['dinari_current_price'] = str(new_price)
+            self.state.variables['last_dinari_auto_update'] = current_time
+            
+            # Add to DINARI price history
+            dinari_price_history = self.state.variables.get('dinari_price_history', [])
+            price_entry = {
+                'price': str(new_price),
+                'timestamp': current_time,
+                'source': 'external_apis',
+                'confidence': '0.85',
+                'auto_updated': True
+            }
+            dinari_price_history.append(price_entry)
+            
+            # Keep only last 100 entries
+            if len(dinari_price_history) > 100:
+                dinari_price_history = dinari_price_history[-100:]
+            
+            self.state.variables['dinari_price_history'] = dinari_price_history
+            
+            # Calculate deviation from $1.00 target
+            deviation = abs(new_price - Decimal('1.0')) / Decimal('1.0')
+            
+            # Auto-trigger DINARI stabilization if needed
+            auto_stabilized = False
+            if deviation > Decimal('0.02'):  # 2% threshold
+                try:
+                    stabilize_result = self._automatic_dinari_peg_stabilization(caller)
+                    auto_stabilized = stabilize_result.get('success', False)
+                except:
+                    pass
+            
+            return {
+                'success': True,
+                'old_price': str(old_price),
+                'new_price': str(new_price),
+                'source': 'external_apis',
+                'deviation_percent': str(deviation * 100),
+                'auto_stabilized': auto_stabilized,
+                'next_update_in': update_cooldown
+            }
+            
+    
+    def _get_dinari_api_status(self) -> Dict[str, Any]:
+        """Get status of DINARI API price updates"""
+        last_update = self.state.variables.get('last_dinari_auto_update', 0)
+        current_time = int(time.time())
+        time_since_update = current_time - last_update
+        
+        price_history = self.state.variables.get('dinari_price_history', [])
+        auto_updates = [p for p in price_history if p.get('auto_updated', False)]
+        
+        return {
+            'last_auto_update': last_update,
+            'time_since_last_update_seconds': time_since_update,
+            'total_auto_updates': len(auto_updates),
+            'api_status': 'active' if time_since_update < 300 else 'inactive',
+            'current_price': self.state.variables.get('dinari_current_price', '1.0'),
+            'price_source': 'external_apis' if auto_updates else 'manual',
+            'currency': 'DINARI'
+        }
+
     def _update_usd_price_oracle(self, args: Dict[str, Any], caller: str) -> Dict[str, Any]:
         """Update AFC/USD price from external oracles"""
         new_price = args.get('price')
@@ -1186,6 +1474,7 @@ class DinariBlockchain:
         self.start_automatic_price_updates(120)
         self.start_automatic_dinari_price_updates(180)
         
+        
         self.logger.info(f"DinariBlockchain initialized with {len(self.validators)} validators")
         self.logger.info(f"🚀 Automatic mining: {'ACTIVE' if self.mining_active else 'INACTIVE'}")
     
@@ -1453,296 +1742,6 @@ class DinariBlockchain:
         except Exception as e:
             self.logger.error(f"Failed to fetch DINARI price from APIs: {e}")
             return None
-
-
-    def _auto_update_dinari_price_from_api(self, caller: str = "system") -> Dict[str, Any]:
-        """Automatically update DINARI price from external APIs"""
-        
-        # Check if enough time has passed since last update
-        last_update = self.state.variables.get('last_dinari_auto_update', 0)
-        current_time = int(time.time())
-        update_cooldown = 60  # 60 seconds between API calls
-        
-        if current_time - last_update < update_cooldown:
-            return {
-                'success': False,
-                'reason': f'Update cooldown active. {update_cooldown - (current_time - last_update)} seconds remaining'
-            }
-        
-        # Fetch DINARI price from APIs
-        new_price = self._fetch_dinari_price_from_apis()
-        
-        if new_price is None:
-            return {
-                'success': False,
-                'reason': 'Failed to fetch DINARI price from external APIs'
-            }
-        
-        # Update DINARI price oracle
-        old_price = Decimal(self.state.variables.get('dinari_current_price', '1.0'))
-        self.state.variables['dinari_current_price'] = str(new_price)
-        self.state.variables['last_dinari_auto_update'] = current_time
-        
-        # Add to DINARI price history
-        dinari_price_history = self.state.variables.get('dinari_price_history', [])
-        price_entry = {
-            'price': str(new_price),
-            'timestamp': current_time,
-            'source': 'external_apis',
-            'confidence': '0.85',
-            'auto_updated': True
-        }
-        dinari_price_history.append(price_entry)
-        
-        # Keep only last 100 entries
-        if len(dinari_price_history) > 100:
-            dinari_price_history = dinari_price_history[-100:]
-        
-        self.state.variables['dinari_price_history'] = dinari_price_history
-        
-        # Calculate deviation from $1.00 target
-        deviation = abs(new_price - Decimal('1.0')) / Decimal('1.0')
-        
-        # Auto-trigger DINARI stabilization if needed
-        auto_stabilized = False
-        if deviation > Decimal('0.02'):  # 2% threshold
-            try:
-                stabilize_result = self._automatic_dinari_peg_stabilization(caller)
-                auto_stabilized = stabilize_result.get('success', False)
-            except:
-                pass
-        
-        return {
-            'success': True,
-            'old_price': str(old_price),
-            'new_price': str(new_price),
-            'source': 'external_apis',
-            'deviation_percent': str(deviation * 100),
-            'auto_stabilized': auto_stabilized,
-            'next_update_in': update_cooldown
-        }
-    
-    def _check_dinari_peg_deviation(self) -> Dict[str, Any]:
-        """Check DINARI peg deviation from $1.00 USD"""
-        current_price = Decimal(self.state.variables.get('dinari_current_price', '1.0'))
-        target_price = Decimal('1.0')
-        
-        deviation = abs(current_price - target_price) / target_price
-        deviation_percent = deviation * 100
-        
-        # Define intervention thresholds for DINARI
-        minor_threshold = Decimal('0.01')   # 1% - monitor
-        major_threshold = Decimal('0.02')   # 2% - intervene
-        critical_threshold = Decimal('0.05') # 5% - emergency
-        
-        if deviation <= minor_threshold:
-            status = "STABLE"
-            action = "none"
-            urgency = "low"
-        elif deviation <= major_threshold:
-            status = "MINOR_DEVIATION"
-            action = "algorithmic_rebase"
-            urgency = "medium"
-        elif deviation <= critical_threshold:
-            status = "MAJOR_DEVIATION" 
-            action = "stability_intervention"
-            urgency = "high"
-        else:
-            status = "CRITICAL_DEVIATION"
-            action = "emergency_stabilization"
-            urgency = "critical"
-        
-        # Get current total DINARI supply
-        total_supply = str(sum(Decimal(balance) for balance in self.blockchain.dinari_balances.values()) if hasattr(self, 'blockchain') else Decimal('0'))
-        
-        return {
-            'current_price': str(current_price),
-            'target_price': str(target_price),
-            'deviation_percent': str(deviation_percent),
-            'status': status,
-            'recommended_action': action,
-            'urgency': urgency,
-            'last_update': self.state.variables.get('last_dinari_auto_update', 0),
-            'total_supply': total_supply,
-            'currency': 'DINARI'
-        }
-
-    def _execute_dinari_algorithmic_rebase(self, args: Dict[str, Any], caller: str) -> Dict[str, Any]:
-        """Execute algorithmic DINARI supply rebase to restore $1.00 USD peg"""
-        current_price = Decimal(self.state.variables.get('dinari_current_price', '1.0'))
-        target_price = Decimal('1.0')
-        
-        # Get current DINARI supply from blockchain
-        if not hasattr(self, 'blockchain'):
-            return {'success': False, 'reason': 'Cannot access blockchain instance'}
-        
-        current_supply = sum(Decimal(balance) for balance in self.blockchain.dinari_balances.values())
-        
-        if current_supply <= 0:
-            return {'success': False, 'reason': 'No DINARI supply to rebase'}
-        
-        # Calculate required supply adjustment
-        price_ratio = current_price / target_price
-        
-        # Rebase parameters for DINARI
-        max_rebase_percent = Decimal('0.10')  # Max 10% per rebase
-        rebase_factor = Decimal('0.5')  # 50% of price deviation
-        
-        if current_price > target_price:
-            # DINARI overvalued -> increase supply
-            supply_increase_needed = (price_ratio - 1) * rebase_factor
-            supply_increase = min(supply_increase_needed, max_rebase_percent)
-            new_supply = current_supply * (1 + supply_increase)
-            action = "EXPAND"
-            
-        elif current_price < target_price:
-            # DINARI undervalued -> decrease supply  
-            supply_decrease_needed = (1 - price_ratio) * rebase_factor
-            supply_decrease = min(supply_decrease_needed, max_rebase_percent)
-            new_supply = current_supply * (1 - supply_decrease)
-            action = "CONTRACT"
-            
-        else:
-            return {'success': False, 'reason': 'No rebase needed - price at target'}
-        
-        # Check rebase cooldown
-        last_rebase = self.state.variables.get('last_dinari_rebase_time', 0)
-        cooldown_period = 3600  # 1 hour cooldown
-        current_time = int(time.time())
-        
-        if current_time - last_rebase < cooldown_period:
-            return {
-                'success': False,
-                'reason': f'DINARI rebase cooldown active. {cooldown_period - (current_time - last_rebase)} seconds remaining'
-            }
-        
-        # Execute DINARI rebase by adjusting all balances proportionally
-        old_supply = current_supply
-        supply_ratio = new_supply / old_supply
-        
-        # Update all DINARI balances proportionally
-        updated_balances = {}
-        for address, balance_str in self.blockchain.dinari_balances.items():
-            old_balance = Decimal(balance_str)
-            new_balance = old_balance * supply_ratio
-            updated_balances[address] = str(new_balance)
-        
-        # Apply the rebase to blockchain
-        self.blockchain.dinari_balances = updated_balances
-        
-        # Update total supply in chain state
-        self.blockchain.chain_state['total_dinari_supply'] = str(new_supply)
-        
-        # Save to database
-        self.blockchain._save_balances()
-        self.blockchain._save_chain_state()
-        
-        # Record rebase event
-        self.state.variables['last_dinari_rebase_time'] = current_time
-        dinari_rebase_history = self.state.variables.get('dinari_rebase_history', [])
-        rebase_event = {
-            'timestamp': current_time,
-            'action': action,
-            'old_supply': str(old_supply),
-            'new_supply': str(new_supply),
-            'supply_change_percent': str((new_supply - old_supply) / old_supply * 100),
-            'price_before': str(current_price),
-            'target_price': str(target_price),
-            'triggered_by': caller
-        }
-        dinari_rebase_history.append(rebase_event)
-        
-        # Keep only last 50 rebase events
-        if len(dinari_rebase_history) > 50:
-            dinari_rebase_history = dinari_rebase_history[-50:]
-        
-        self.state.variables['dinari_rebase_history'] = dinari_rebase_history
-        
-        return {
-            'success': True,
-            'action': action,
-            'old_supply': str(old_supply),
-            'new_supply': str(new_supply),
-            'supply_change_percent': str((new_supply - old_supply) / old_supply * 100),
-            'price_before': str(current_price),
-            'target_price': str(target_price),
-            'rebase_ratio': str(supply_ratio),
-            'addresses_affected': len(updated_balances),
-            'currency': 'DINARI'
-        }
-
-
-    def _automatic_dinari_peg_stabilization(self, caller: str) -> Dict[str, Any]:
-        """Automatic DINARI peg stabilization"""
-        current_price = Decimal(self.state.variables.get('dinari_current_price', '1.0'))
-        deviation_check = self._check_dinari_peg_deviation()
-        
-        interventions = []
-        
-        # Execute DINARI rebase if needed
-        if deviation_check['urgency'] in ['medium', 'high', 'critical']:
-            rebase_result = self._execute_dinari_algorithmic_rebase({}, caller)
-            interventions.append({
-                'type': 'dinari_algorithmic_rebase',
-                'result': rebase_result
-            })
-        
-        return {
-            'success': True,
-            'price_status': deviation_check,
-            'interventions_executed': len(interventions),
-            'interventions': interventions,
-            'timestamp': int(time.time()),
-            'currency': 'DINARI'
-        }
-
-    def _get_dinari_stability_metrics(self) -> Dict[str, Any]:
-        """Get comprehensive DINARI stability metrics"""
-        current_price = Decimal(self.state.variables.get('dinari_current_price', '1.0'))
-        
-        # Get total DINARI supply
-        total_supply = Decimal('0')
-        if hasattr(self, 'blockchain'):
-            total_supply = sum(Decimal(balance) for balance in self.blockchain.dinari_balances.values())
-        
-        # Calculate metrics
-        deviation = abs(current_price - Decimal('1.0')) / Decimal('1.0')
-        
-        # Recent activity
-        price_history = self.state.variables.get('dinari_price_history', [])
-        rebase_history = self.state.variables.get('dinari_rebase_history', [])
-        
-        return {
-            'current_price': str(current_price),
-            'target_price': '1.0',
-            'deviation_percent': str(deviation * 100),
-            'total_supply': str(total_supply),
-            'currency': 'DINARI',
-            'last_price_update': self.state.variables.get('last_dinari_auto_update', 0),
-            'last_rebase_time': self.state.variables.get('last_dinari_rebase_time', 0),
-            'price_updates_count': len(price_history),
-            'rebases_count': len(rebase_history),
-            'api_status': 'active' if price_history else 'inactive'
-        }
-
-    def _get_dinari_api_status(self) -> Dict[str, Any]:
-        """Get status of DINARI API price updates"""
-        last_update = self.state.variables.get('last_dinari_auto_update', 0)
-        current_time = int(time.time())
-        time_since_update = current_time - last_update
-        
-        price_history = self.state.variables.get('dinari_price_history', [])
-        auto_updates = [p for p in price_history if p.get('auto_updated', False)]
-        
-        return {
-            'last_auto_update': last_update,
-            'time_since_last_update_seconds': time_since_update,
-            'total_auto_updates': len(auto_updates),
-            'api_status': 'active' if time_since_update < 300 else 'inactive',
-            'current_price': self.state.variables.get('dinari_current_price', '1.0'),
-            'price_source': 'external_apis' if auto_updates else 'manual',
-            'currency': 'DINARI'
-        }
 
     def stop_automatic_mining(self):
         """Stop automatic block mining"""
