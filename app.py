@@ -1044,13 +1044,13 @@ def rpc_handler():
                         return jsonify({
                             "jsonrpc": "2.0",
                             "result": result["data"],
-                            "id": request_id
+                            "id": data.get("id", 1)
                         })
                     else:
                         return jsonify({
                             "jsonrpc": "2.0", 
                             "error": {"code": -32603, "message": result["error"]},
-                            "id": request_id
+                            "id": data.get("id", 1)
                         })
                     
             elif method == 'dinari_mineBlock':
