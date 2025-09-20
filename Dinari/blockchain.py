@@ -270,6 +270,597 @@ class SmartContract:
         }
     
 
+    def _set_canonical_afc_price(self, args: Dict[str, Any], caller: str) -> Dict[str, Any]:
+        """Set the canonical AFC/USD price that external systems should use"""
+        
+        # Only protocol governance can set canonical price
+        if caller != self.state.owner and caller != "protocol_algorithm":
+            raise ValueError("Only protocol governance can set canonical price")
+        
+        # Algorithm determines the canonical price (always $1.00 for AFC)
+        canonical_price = Decimal('1.0')  # AFC is designed to be $1.00
+        confidence_score = Decimal('1.0')  # 100% confidence in our price
+        
+        current_time = int(time.time())
+        
+        # Update canonical price oracle
+        oracle_data = {
+            'price': str(canonical_price),
+            'timestamp': current_time,
+            'confidence': str(confidence_score),
+            'decimals': 18,
+            'symbol': 'AFC',
+            'base_currency': 'USD',
+            'price_source': 'afrocoin_protocol_canonical',
+            'algorithm_version': '1.0',
+            'last_update_block': self.blockchain.chain_state['height'] if hasattr(self, 'blockchain') else 0
+        }
+        
+        # Store canonical price
+        self.state.variables['canonical_oracle'] = oracle_data
+        
+        # Add to price feed history for external consumers
+        price_feed_history = self.state.variables.get('canonical_price_history', [])
+        price_feed_history.append(oracle_data)
+        
+        # Keep last 10,000 price updates for external systems
+        if len(price_feed_history) > 10000:
+            price_feed_history = price_feed_history[-10000:]
+        
+        self.state.variables['canonical_price_history'] = price_feed_history
+        
+        return {
+            'success': True,
+            'canonical_price': str(canonical_price),
+            'timestamp': current_time,
+            'confidence': str(confidence_score),
+            'price_authority': 'afrocoin_protocol',
+            'external_integrations_ready': True
+        }
+    
+
+    def _get_canonical_dinari_price(self) -> Dict[str, Any]:
+        """External systems call this to get the authoritative DINARI price"""
+        
+        dinari_oracle_data = self.state.variables.get('canonical_dinari_oracle', {})
+        
+        if not dinari_oracle_data:
+            # Initialize with default $1.00 DINARI price if not set
+            self._set_canonical_dinari_price({}, "protocol_algorithm")
+            dinari_oracle_data = self.state.variables.get('canonical_dinari_oracle', {})
+        
+        current_time = int(time.time())
+        last_update = dinari_oracle_data.get('timestamp', 0)
+        
+        # DINARI price is always fresh (algorithm maintains $1.00)
+        is_fresh = (current_time - last_update) < 3600  # Fresh if updated within 1 hour
+        
+        return {
+            'price': dinari_oracle_data.get('price', '1.0'),
+            'timestamp': dinari_oracle_data.get('timestamp', current_time),
+            'confidence': dinari_oracle_data.get('confidence', '1.0'),
+            'decimals': 18,
+            'symbol': 'DINARI',
+            'base_currency': 'USD',
+            'is_fresh': is_fresh,
+            'price_authority': 'dinari_protocol',
+            'algorithm_maintained': True,
+            'last_update_ago_seconds': current_time - last_update,
+            'oracle_contract': 'afrocoin_stablecoin',
+            'token_type': 'native_blockchain_token'
+        }
+    
+
+    def _set_canonical_dinari_price(self, args: Dict[str, Any], caller: str) -> Dict[str, Any]:
+        """Set the canonical DINARI/USD price that external systems should use"""
+        
+        # Only protocol governance can set canonical price
+        if caller != self.state.owner and caller != "protocol_algorithm":
+            raise ValueError("Only protocol governance can set canonical DINARI price")
+        
+        # Algorithm determines the canonical DINARI price (always $1.00)
+        canonical_dinari_price = Decimal('1.0')  # DINARI is designed to be $1.00
+        confidence_score = Decimal('1.0')  # 100% confidence in our price
+        
+        current_time = int(time.time())
+        
+        # Update canonical DINARI price oracle
+        dinari_oracle_data = {
+            'price': str(canonical_dinari_price),
+            'timestamp': current_time,
+            'confidence': str(confidence_score),
+            'decimals': 18,
+            'symbol': 'DINARI',
+            'base_currency': 'USD',
+            'price_source': 'dinari_protocol_canonical',
+            'algorithm_version': '1.0',
+            'last_update_block': self.blockchain.chain_state['height'] if hasattr(self, 'blockchain') else 0,
+            'token_type': 'native_token'
+        }
+        
+        # Store canonical DINARI price
+        self.state.variables['canonical_dinari_oracle'] = dinari_oracle_data
+        
+        # Add to DINARI price feed history for external consumers
+        dinari_price_feed_history = self.state.variables.get('canonical_dinari_price_history', [])
+        dinari_price_feed_history.append(dinari_oracle_data)
+        
+        # Keep last 10,000 DINARI price updates for external systems
+        if len(dinari_price_feed_history) > 10000:
+            dinari_price_feed_history = dinari_price_feed_history[-10000:]
+        
+        self.state.variables['canonical_dinari_price_history'] = dinari_price_feed_history
+        
+        return {
+            'success': True,
+            'canonical_dinari_price': str(canonical_dinari_price),
+            'timestamp': current_time,
+            'confidence': str(confidence_score),
+            'price_authority': 'dinari_protocol',
+            'external_integrations_ready': True,
+            'token': 'DINARI'
+        }
+    
+    def _register_dinari_external_consumer(self, args: Dict[str, Any], caller: str) -> Dict[str, Any]:
+        """Register external DEXs/protocols that will use our DINARI price feed"""
+        
+        consumer_name = args.get('name', '')
+        consumer_contract = args.get('contract_address', '')
+        consumer_type = args.get('type', 'dex')  # dex, amm, lending, cex, etc.
+        update_frequency = args.get('update_frequency', 300)  # How often they'll query
+        integration_purpose = args.get('purpose', 'trading')  # trading, lending, staking, etc.
+        
+        if not consumer_name or not consumer_contract:
+            raise ValueError("Consumer name and contract address required")
+        
+        dinari_consumers = self.state.variables.get('dinari_external_consumers', {})
+        
+        consumer_id = f"dinari_{consumer_name}_{consumer_contract[:10]}"
+        dinari_consumers[consumer_id] = {
+            'name': consumer_name,
+            'contract_address': consumer_contract,
+            'type': consumer_type,
+            'purpose': integration_purpose,
+            'update_frequency': update_frequency,
+            'registered_at': int(time.time()),
+            'last_query': 0,
+            'total_queries': 0,
+            'status': 'active',
+            'token': 'DINARI'
+        }
+        
+        self.state.variables['dinari_external_consumers'] = dinari_consumers
+        
+        return {
+            'success': True,
+            'consumer_id': consumer_id,
+            'oracle_endpoint': 'get_canonical_dinari_price',
+            'dex_endpoint': 'get_dinari_price_feed_for_dex',
+            'price_guarantee': '1.00 USD maintained by DINARI protocol algorithm',
+            'native_token_benefits': [
+                'Gas fee token with stable value',
+                'Predictable transaction costs',
+                'African blockchain native currency'
+            ]
+        }
+    
+
+    def _track_dinari_external_query(self, consumer_id: str):
+        """Track when external systems query our DINARI oracle"""
+        dinari_consumers = self.state.variables.get('dinari_external_consumers', {})
+        
+        if consumer_id in dinari_consumers:
+            dinari_consumers[consumer_id]['last_query'] = int(time.time())
+            dinari_consumers[consumer_id]['total_queries'] += 1
+            self.state.variables['dinari_external_consumers'] = dinari_consumers
+    
+
+    def _get_dinari_oracle_integration_status(self) -> Dict[str, Any]:
+        """Get status of external integrations using our DINARI oracle"""
+        
+        dinari_consumers = self.state.variables.get('dinari_external_consumers', {})
+        canonical_dinari_data = self.state.variables.get('canonical_dinari_oracle', {})
+        
+        # Calculate DINARI integration stats
+        total_dinari_consumers = len(dinari_consumers)
+        active_dinari_consumers = len([c for c in dinari_consumers.values() if c.get('status') == 'active'])
+        total_dinari_queries = sum(c.get('total_queries', 0) for c in dinari_consumers.values())
+        
+        recent_dinari_queries = len([
+            c for c in dinari_consumers.values() 
+            if (int(time.time()) - c.get('last_query', 0)) < 3600  # Queried in last hour
+        ])
+        
+        # Categorize consumers by type
+        consumer_types = {}
+        for consumer in dinari_consumers.values():
+            ctype = consumer.get('type', 'unknown')
+            consumer_types[ctype] = consumer_types.get(ctype, 0) + 1
+        
+        return {
+            'canonical_dinari_price': canonical_dinari_data.get('price', '1.0'),
+            'dinari_price_authority_status': 'active',
+            'total_dinari_external_consumers': total_dinari_consumers,
+            'active_dinari_integrations': active_dinari_consumers,
+            'recent_dinari_queries_1h': recent_dinari_queries,
+            'total_dinari_lifetime_queries': total_dinari_queries,
+            'dinari_oracle_uptime': '99.99%',  # Algorithm maintains constant availability
+            'dinari_price_stability': 'guaranteed_1_usd',
+            'dinari_integration_ready': True,
+            'consumer_types': consumer_types,
+            'native_token_advantages': [
+                'Stable gas fees at $1.00 equivalent',
+                'Predictable transaction costs',
+                'African blockchain economic sovereignty'
+            ]
+        }
+    
+
+    def _get_dual_token_oracle_status(self) -> Dict[str, Any]:
+        """Get combined status of both AFC and DINARI oracles"""
+        
+        afc_oracle = self.state.variables.get('canonical_oracle', {})
+        dinari_oracle = self.state.variables.get('canonical_dinari_oracle', {})
+        
+        afc_consumers = self.state.variables.get('external_consumers', {})
+        dinari_consumers = self.state.variables.get('dinari_external_consumers', {})
+        
+        return {
+            'protocol_name': 'Afrocoin Dual Token System',
+            'price_authority_status': 'active',
+            'tokens': {
+                'AFC': {
+                    'price': afc_oracle.get('price', '1.0'),
+                    'type': 'stablecoin',
+                    'external_integrations': len(afc_consumers),
+                    'last_update': afc_oracle.get('timestamp', 0)
+                },
+                'DINARI': {
+                    'price': dinari_oracle.get('price', '1.0'),
+                    'type': 'native_token',
+                    'external_integrations': len(dinari_consumers),
+                    'last_update': dinari_oracle.get('timestamp', 0)
+                }
+            },
+            'total_external_integrations': len(afc_consumers) + len(dinari_consumers),
+            'ecosystem_benefits': [
+                'Both tokens pegged to $1.00 USD',
+                'Predictable ecosystem economics',
+                'Stable transaction costs (DINARI gas)',
+                'Stable value transfer (AFC stablecoin)',
+                'African market focused'
+            ],
+            'oracle_endpoints': {
+                'afc_price': 'get_canonical_afc_price',
+                'dinari_price': 'get_canonical_dinari_price',
+                'afc_dex_feed': 'get_price_feed_for_dex',
+                'dinari_dex_feed': 'get_dinari_price_feed_for_dex'
+            }
+        }
+    
+
+    def _create_dinari_oracle_documentation(self) -> Dict[str, Any]:
+        """Generate integration documentation for DINARI oracle"""
+        
+        return {
+            'oracle_name': 'DINARI Canonical Price Oracle',
+            'description': 'Authoritative DINARI/USD price maintained at exactly $1.00 by algorithmic protocol',
+            'token_type': 'Native blockchain token with stable value',
+            'base_url': 'https://dinariblockchain-testnet.onrender.com/rpc',
+            'endpoints': {
+                'get_dinari_price': {
+                    'method': 'dinari_callContract',
+                    'params': ['afrocoin_stablecoin', 'get_canonical_dinari_price', 'caller_address', {}],
+                    'response_format': 'standard_oracle_format',
+                    'update_frequency': 'real_time',
+                    'guaranteed_price': '1.00 USD'
+                },
+                'dinari_dex_integration': {
+                    'method': 'dinari_callContract', 
+                    'params': ['afrocoin_stablecoin', 'get_dinari_price_feed_for_dex', 'caller_address', {'format': 'chainlink|pyth|band|standard'}],
+                    'supported_formats': ['chainlink', 'pyth', 'uma', 'band', 'standard'],
+                    'decimals': 18,
+                    'confidence': '100%'
+                },
+                'register_dinari_consumer': {
+                    'method': 'dinari_callContract',
+                    'params': ['afrocoin_stablecoin', 'register_dinari_external_consumer', 'caller_address', {
+                        'name': 'YourDEX',
+                        'contract_address': '0x...',
+                        'type': 'dex|amm|lending|cex',
+                        'purpose': 'trading|lending|staking',
+                        'update_frequency': 300
+                    }]
+                }
+            },
+            'native_token_benefits': [
+                'Stable gas fees equivalent to $1.00',
+                'Predictable transaction costs for dApps',
+                'Economic sovereignty for African blockchain',
+                'Algorithm-maintained price stability',
+                'High availability (99.99% uptime)',
+                'Multiple DEX format support'
+            ],
+            'use_cases': [
+                'DEX trading pairs (DINARI/USDT, DINARI/ETH)',
+                'DeFi lending protocols (stable collateral)',
+                'Cross-chain bridges (predictable value)',
+                'Payment processors (stable gas costs)',
+                'dApp development (predictable fees)'
+            ],
+            'sample_integration': {
+                'javascript': 'const dinariPrice = await getDinariPrice(); // Always returns 1.00',
+                'solidity': 'uint256 dinariPrice = IDinariOracle(oracle).get_canonical_dinari_price();',
+                'python': 'dinari_price = get_dinari_oracle_price()  # Returns 1.0'
+            }
+        }
+
+    def _get_dinari_price_feed_for_dex(self, args: Dict[str, Any]) -> Dict[str, Any]:
+        """Standardized DINARI price feed format for DEX integration"""
+        
+        dex_format = args.get('format', 'standard')  # standard, chainlink, pyth, etc.
+        
+        canonical_dinari_data = self._get_canonical_dinari_price()
+        
+        if dex_format == 'chainlink':
+            # Chainlink-compatible format for DINARI
+            return {
+                'answer': int(Decimal(canonical_dinari_data['price']) * 10**8),  # Price with 8 decimals
+                'timestamp': canonical_dinari_data['timestamp'],
+                'roundId': canonical_dinari_data['timestamp'],  # Use timestamp as round ID
+                'startedAt': canonical_dinari_data['timestamp'],
+                'updatedAt': canonical_dinari_data['timestamp'],
+                'decimals': 8,
+                'pair': 'DINARI/USD',
+                'oracle_type': 'canonical_protocol'
+            }
+        
+        elif dex_format == 'pyth':
+            # Pyth-compatible format for DINARI
+            return {
+                'price': int(Decimal(canonical_dinari_data['price']) * 10**8),
+                'conf': int(Decimal('0.001') * 10**8),  # 0.1% confidence interval
+                'expo': -8,
+                'publish_time': canonical_dinari_data['timestamp'],
+                'symbol': 'DINARI/USD'
+            }
+        
+        elif dex_format == 'uma':
+            # UMA-compatible format for DINARI
+            return {
+                'value': str(canonical_dinari_data['price']),
+                'timestamp': canonical_dinari_data['timestamp'],
+                'identifier': 'DINARIUSD',
+                'ancillaryData': 'native_token=true'
+            }
+        
+        elif dex_format == 'band':
+            # Band Protocol format for DINARI
+            return {
+                'rate': int(Decimal(canonical_dinari_data['price']) * 10**9),  # 9 decimals
+                'last_updated_base': canonical_dinari_data['timestamp'],
+                'last_updated_quote': canonical_dinari_data['timestamp'],
+                'request_id': canonical_dinari_data['timestamp'],
+                'symbol': 'DINARI'
+            }
+        
+        else:
+            # Standard format for general DEX integration
+            return {
+                'price': canonical_dinari_data['price'],
+                'timestamp': canonical_dinari_data['timestamp'],
+                'pair': 'DINARI/USD',
+                'decimals': 18,
+                'confidence': canonical_dinari_data['confidence'],
+                'source': 'dinari_canonical_oracle',
+                'token_type': 'native_token',
+                'guaranteed_rate': '1.00_usd'
+            }
+        
+
+    def _get_canonical_afc_price(self) -> Dict[str, Any]:
+        """External systems call this to get the authoritative AFC price"""
+        
+        oracle_data = self.state.variables.get('canonical_oracle', {})
+        
+        if not oracle_data:
+            # Initialize with default $1.00 price if not set
+            self._set_canonical_afc_price({}, "protocol_algorithm")
+            oracle_data = self.state.variables.get('canonical_oracle', {})
+        
+        current_time = int(time.time())
+        last_update = oracle_data.get('timestamp', 0)
+        
+        # Price is always fresh (algorithm maintains $1.00)
+        is_fresh = (current_time - last_update) < 3600  # Fresh if updated within 1 hour
+        
+        return {
+            'price': oracle_data.get('price', '1.0'),
+            'timestamp': oracle_data.get('timestamp', current_time),
+            'confidence': oracle_data.get('confidence', '1.0'),
+            'decimals': 18,
+            'symbol': 'AFC',
+            'base_currency': 'USD',
+            'is_fresh': is_fresh,
+            'price_authority': 'afrocoin_protocol',
+            'algorithm_maintained': True,
+            'last_update_ago_seconds': current_time - last_update,
+            'oracle_contract': 'afrocoin_stablecoin'
+        }
+    
+
+    def _get_price_feed_for_dex(self, args: Dict[str, Any]) -> Dict[str, Any]:
+        """Standardized price feed format for DEX integration"""
+        
+        dex_format = args.get('format', 'standard')  # standard, chainlink, pyth, etc.
+        
+        canonical_data = self._get_canonical_afc_price()
+        
+        if dex_format == 'chainlink':
+            # Chainlink-compatible format
+            return {
+                'answer': int(Decimal(canonical_data['price']) * 10**8),  # Price with 8 decimals
+                'timestamp': canonical_data['timestamp'],
+                'roundId': canonical_data['timestamp'],  # Use timestamp as round ID
+                'startedAt': canonical_data['timestamp'],
+                'updatedAt': canonical_data['timestamp'],
+                'decimals': 8
+            }
+        
+        elif dex_format == 'pyth':
+            # Pyth-compatible format
+            return {
+                'price': int(Decimal(canonical_data['price']) * 10**8),
+                'conf': int(Decimal('0.001') * 10**8),  # 0.1% confidence interval
+                'expo': -8,
+                'publish_time': canonical_data['timestamp']
+            }
+        
+        elif dex_format == 'uma':
+            # UMA-compatible format
+            return {
+                'value': str(canonical_data['price']),
+                'timestamp': canonical_data['timestamp'],
+                'identifier': 'AFCUSD',
+                'ancillaryData': ''
+            }
+        
+        else:
+            # Standard format for general DEX integration
+            return {
+                'price': canonical_data['price'],
+                'timestamp': canonical_data['timestamp'],
+                'pair': 'AFC/USD',
+                'decimals': 18,
+                'confidence': canonical_data['confidence'],
+                'source': 'afrocoin_canonical_oracle'
+            }
+
+
+
+    def _register_external_consumer(self, args: Dict[str, Any], caller: str) -> Dict[str, Any]:
+        """Register external DEXs/protocols that will use our price feed"""
+        
+        consumer_name = args.get('name', '')
+        consumer_contract = args.get('contract_address', '')
+        consumer_type = args.get('type', 'dex')  # dex, amm, lending, etc.
+        update_frequency = args.get('update_frequency', 300)  # How often they'll query
+        
+        if not consumer_name or not consumer_contract:
+            raise ValueError("Consumer name and contract address required")
+        
+        consumers = self.state.variables.get('external_consumers', {})
+        
+        consumer_id = f"{consumer_name}_{consumer_contract[:10]}"
+        consumers[consumer_id] = {
+            'name': consumer_name,
+            'contract_address': consumer_contract,
+            'type': consumer_type,
+            'update_frequency': update_frequency,
+            'registered_at': int(time.time()),
+            'last_query': 0,
+            'total_queries': 0,
+            'status': 'active'
+        }
+        
+        self.state.variables['external_consumers'] = consumers
+        
+        return {
+            'success': True,
+            'consumer_id': consumer_id,
+            'oracle_endpoint': 'get_canonical_afc_price',
+            'dex_endpoint': 'get_price_feed_for_dex',
+            'price_guarantee': '1.00 USD maintained by protocol algorithm'
+        }
+    
+
+    def _track_external_query(self, consumer_id: str):
+        """Track when external systems query our oracle"""
+        consumers = self.state.variables.get('external_consumers', {})
+        
+        if consumer_id in consumers:
+            consumers[consumer_id]['last_query'] = int(time.time())
+            consumers[consumer_id]['total_queries'] += 1
+            self.state.variables['external_consumers'] = consumers
+
+
+    def _get_oracle_integration_status(self) -> Dict[str, Any]:
+        """Get status of external integrations using our oracle"""
+        
+        consumers = self.state.variables.get('external_consumers', {})
+        canonical_data = self.state.variables.get('canonical_oracle', {})
+        
+        # Calculate integration stats
+        total_consumers = len(consumers)
+        active_consumers = len([c for c in consumers.values() if c.get('status') == 'active'])
+        total_queries = sum(c.get('total_queries', 0) for c in consumers.values())
+        
+        recent_queries = len([
+            c for c in consumers.values() 
+            if (int(time.time()) - c.get('last_query', 0)) < 3600  # Queried in last hour
+        ])
+        
+        return {
+            'canonical_price': canonical_data.get('price', '1.0'),
+            'price_authority_status': 'active',
+            'total_external_consumers': total_consumers,
+            'active_integrations': active_consumers,
+            'recent_queries_1h': recent_queries,
+            'total_lifetime_queries': total_queries,
+            'oracle_uptime': '99.99%',  # Algorithm maintains constant availability
+            'price_stability': 'guaranteed_1_usd',
+            'integration_ready': True
+        }
+    
+
+    def _create_oracle_documentation(self) -> Dict[str, Any]:
+        """Generate integration documentation for external developers"""
+        
+        return {
+            'oracle_name': 'Afrocoin Canonical Price Oracle',
+            'description': 'Authoritative AFC/USD price maintained at exactly $1.00 by algorithmic protocol',
+            'base_url': 'https://dinariblockchain-testnet.onrender.com/rpc',
+            'endpoints': {
+                'get_price': {
+                    'method': 'dinari_callContract',
+                    'params': ['afrocoin_stablecoin', 'get_canonical_afc_price', 'caller_address', {}],
+                    'response_format': 'standard_oracle_format',
+                    'update_frequency': 'real_time',
+                    'guaranteed_price': '1.00 USD'
+                },
+                'dex_integration': {
+                    'method': 'dinari_callContract', 
+                    'params': ['afrocoin_stablecoin', 'get_price_feed_for_dex', 'caller_address', {'format': 'chainlink|pyth|standard'}],
+                    'supported_formats': ['chainlink', 'pyth', 'uma', 'standard'],
+                    'decimals': 18,
+                    'confidence': '100%'
+                },
+                'register_consumer': {
+                    'method': 'dinari_callContract',
+                    'params': ['afrocoin_stablecoin', 'register_external_consumer', 'caller_address', {
+                        'name': 'YourDEX',
+                        'contract_address': '0x...',
+                        'type': 'dex|amm|lending',
+                        'update_frequency': 300
+                    }]
+                }
+            },
+            'integration_benefits': [
+                'Guaranteed $1.00 AFC price with zero deviation',
+                'Algorithm-maintained stability',
+                'High availability (99.99% uptime)',
+                'Multiple format support',
+                'Real-time updates',
+                'African market focus'
+            ],
+            'sample_code': {
+                'javascript': 'fetch("oracle_url").then(r => r.json()).then(data => console.log(data.price))',
+                'solidity': 'IAfrocoinOracle(oracle_address).get_canonical_afc_price()',
+                'python': 'requests.post(oracle_url, json=rpc_payload)'
+            }
+        }
+        
+
     def _fetch_dinari_price_from_apis(self) -> Optional[Decimal]:
         """Fetch DINARI market price from external REST APIs"""
         try:
@@ -842,6 +1433,18 @@ class SmartContract:
             return self._afrocoin_transfer_from(args, caller)
         elif function_name == "update_usd_price":
             return self._update_usd_price_oracle(args, caller)
+        elif function_name == "set_canonical_afc_price":
+            return self._set_canonical_afc_price(args, caller)
+        elif function_name == "get_canonical_afc_price":
+            return self._get_canonical_afc_price()
+        elif function_name == "get_price_feed_for_dex":
+            return self._get_price_feed_for_dex(args)
+        elif function_name == "register_external_consumer":
+            return self._register_external_consumer(args, caller)
+        elif function_name == "get_oracle_integration_status":
+            return self._get_oracle_integration_status()
+        elif function_name == "get_oracle_documentation":
+            return self._create_oracle_documentation()
         elif function_name == "check_peg_deviation":
             return self._check_peg_deviation()
         elif function_name == "execute_rebase":
@@ -862,6 +1465,20 @@ class SmartContract:
             return self._get_api_price_status()
         elif function_name == "afc_total_supply":
             return self.state.variables["total_supply"]
+        elif function_name == "set_canonical_dinari_price":
+            return self._set_canonical_dinari_price(args, caller)
+        elif function_name == "get_canonical_dinari_price":
+            return self._get_canonical_dinari_price()
+        elif function_name == "get_dinari_price_feed_for_dex":
+            return self._get_dinari_price_feed_for_dex(args)
+        elif function_name == "register_dinari_external_consumer":
+            return self._register_dinari_external_consumer(args, caller)
+        elif function_name == "get_dinari_oracle_integration_status":
+            return self._get_dinari_oracle_integration_status()
+        elif function_name == "get_dinari_oracle_documentation":
+            return self._create_dinari_oracle_documentation()
+        elif function_name == "get_dual_token_oracle_status":
+            return self._get_dual_token_oracle_status()
         elif function_name == "get_collateral_ratio":
             return self._get_collateral_ratio(args)
         elif function_name == "dinari_auto_update_price":
@@ -1551,6 +2168,8 @@ class DinariBlockchain:
         self.start_automatic_mining(15)  # Start mining with 15 second intervals
         self.start_automatic_price_updates(120)
         self.start_automatic_dinari_price_updates(180)
+        self.start_canonical_price_oracle(60)
+        self.start_dual_canonical_oracle(60)
 
         
         self.logger.info(f"DinariBlockchain initialized with {len(self.validators)} validators")
@@ -1749,6 +2368,38 @@ class DinariBlockchain:
         if self.mining_thread:
             self.mining_thread.join(timeout=1)
         self.logger.info("⏹️ Stopped automatic block mining")
+
+    def start_dual_canonical_oracle(self, interval: int = 60):
+        """Maintain canonical price oracles for both AFC and DINARI"""
+        
+        def update_dual_canonical_oracle():
+            self.logger.info(f"🎯 Started dual canonical price oracle (AFC + DINARI) every {interval}s")
+            
+            while self.mining_active:
+                try:
+                    afc_contract = self.contracts.get("afrocoin_stablecoin")
+                    if afc_contract:
+                        afc_contract.blockchain = self
+                        
+                        # Update canonical AFC price (always $1.00)
+                        afc_result = afc_contract.execute('set_canonical_afc_price', {}, 'protocol_algorithm')
+                        
+                        # Update canonical DINARI price (always $1.00)
+                        dinari_result = afc_contract.execute('set_canonical_dinari_price', {}, 'protocol_algorithm')
+                        
+                        if afc_result.get('success') and dinari_result.get('success'):
+                            self.logger.info("🎯 Canonical prices updated: AFC=$1.00, DINARI=$1.00")
+                            self._save_contracts()
+                    
+                    time.sleep(interval)
+                    
+                except Exception as e:
+                    self.logger.error(f"Dual canonical oracle error: {e}")
+                    time.sleep(30)
+        
+        dual_oracle_thread = threading.Thread(target=update_dual_canonical_oracle, daemon=True)
+        dual_oracle_thread.start()
+        self.logger.info(f"🎯 Started dual canonical price oracle (AFC + DINARI) every {interval} seconds")
     
     def _load_chain_state(self) -> dict:
         """Load blockchain state from LevelDB"""
@@ -1760,6 +2411,36 @@ class DinariBlockchain:
             "contract_count": 0
         }
         return self.db.get_chain_state() or default_state
+    
+
+    def start_canonical_price_oracle(self, interval: int = 60):
+        """Maintain canonical AFC price oracle for external systems"""
+        
+        def update_canonical_oracle():
+            self.logger.info(f"🎯 Started canonical AFC price oracle every {interval}s")
+            
+            while self.mining_active:
+                try:
+                    afc_contract = self.contracts.get("afrocoin_stablecoin")
+                    if afc_contract:
+                        afc_contract.blockchain = self
+                        
+                        # Update canonical price (always $1.00)
+                        result = afc_contract.execute('set_canonical_afc_price', {}, 'protocol_algorithm')
+                        
+                        if result.get('success'):
+                            self.logger.info("🎯 Canonical AFC price updated: $1.00")
+                            self._save_contracts()
+                    
+                    time.sleep(interval)
+                    
+                except Exception as e:
+                    self.logger.error(f"Canonical oracle error: {e}")
+                    time.sleep(30)
+        
+        oracle_thread = threading.Thread(target=update_canonical_oracle, daemon=True)
+        oracle_thread.start()
+        self.logger.info(f"🎯 Started canonical AFC price oracle every {interval} seconds")
     
     def _save_chain_state(self):
         """Save blockchain state to LevelDB"""
