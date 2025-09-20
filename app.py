@@ -60,11 +60,20 @@ def find_available_port(start_port: int = 8333) -> int:
             continue
     return start_port  # Fallback to original port
 
+P2P_PORT = find_available_port(int(os.getenv('P2P_PORT', 8333)))
+
 def handle_dinari_getDualTokenStatus(params):
     """Get dual token (DINARI + AFC) status and canonical prices"""
     try:
-        # Get current blockchain info
-        blockchain_info = blockchain.get_blockchain_info()
+        # Get current blockchain info - use the actual method names
+        blockchain_info = {
+            "height": len(blockchain.chain),
+            "total_dinari_supply": str(blockchain.total_supply),
+            "validators": len(blockchain.validators) if hasattr(blockchain, 'validators') else 0,
+            "contracts": len(blockchain.contracts) if hasattr(blockchain, 'contracts') else 1,
+            "total_transactions": len(blockchain.transaction_pool) if hasattr(blockchain, 'transaction_pool') else 0,
+            "mining_active": getattr(blockchain, 'mining_active', False)
+        }
         
         # Get AFC supply from Afrocoin contract
         try:
@@ -129,8 +138,6 @@ def handle_dinari_getDualTokenStatus(params):
         
     except Exception as e:
         return {"success": False, "error": f"Failed to get dual token status: {str(e)}"}
-
-P2P_PORT = find_available_port(int(os.getenv('P2P_PORT', 8333)))
 
 class DinariAddress:
     """
