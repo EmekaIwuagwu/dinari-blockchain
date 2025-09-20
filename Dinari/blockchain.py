@@ -268,6 +268,84 @@ class SmartContract:
             'timestamp': int(time.time()),
             'currency': 'DINARI'
         }
+    
+
+    def _fetch_dinari_price_from_apis(self) -> Optional[Decimal]:
+        """Fetch DINARI market price from external REST APIs"""
+        try:
+            # Method 1: Check if DINARI is listed on major exchanges
+            try:
+                # CoinGecko - if DINARI gets listed
+                response = requests.get(
+                    'https://api.coingecko.com/api/v3/simple/price?ids=dinari&vs_currencies=usd',
+                    timeout=10
+                )
+                if response.status_code == 200:
+                    data = response.json()
+                    if 'dinari' in data:
+                        return Decimal(str(data['dinari']['usd']))
+            except:
+                pass
+            
+            # Method 2: Use reference coins and simulate DINARI market price
+            try:
+                response = requests.get(
+                    'https://api.coingecko.com/api/v3/simple/price?ids=ethereum,bitcoin&vs_currencies=usd',
+                    timeout=10
+                )
+                if response.status_code == 200:
+                    data = response.json()
+                    if 'ethereum' in data:
+                        # Simulate DINARI market based on ETH volatility patterns
+                        import random
+                        base_dinari_price = Decimal('1.0')
+                        
+                        # Create realistic market volatility around $1.00
+                        import time
+                        current_minute = int(time.time()) // 60
+                        
+                        if current_minute % 10 == 0:  # Every 10 minutes, different market conditions
+                            # Simulate buying pressure
+                            market_movement = Decimal(str(random.uniform(0.005, 0.030)))  # 0.5-3% above
+                            dinari_price = base_dinari_price + market_movement
+                        elif current_minute % 10 == 1:
+                            # Simulate selling pressure
+                            market_movement = Decimal(str(random.uniform(-0.030, -0.005)))  # 0.5-3% below
+                            dinari_price = base_dinari_price + market_movement
+                        elif current_minute % 10 == 2:
+                            # Simulate high volatility
+                            market_movement = Decimal(str(random.uniform(-0.050, 0.050)))  # ±5%
+                            dinari_price = base_dinari_price + market_movement
+                        else:
+                            # Simulate normal conditions
+                            market_movement = Decimal(str(random.uniform(-0.010, 0.010)))  # ±1%
+                            dinari_price = base_dinari_price + market_movement
+                        
+                        return dinari_price
+            except:
+                pass
+            
+            # Method 3: Binance API reference
+            try:
+                response = requests.get(
+                    'https://api.binance.com/api/v3/ticker/price?symbol=ETHUSDT',
+                    timeout=10
+                )
+                if response.status_code == 200:
+                    # Use ETH as volatility reference for DINARI
+                    import random
+                    return Decimal('1.0') + Decimal(str(random.uniform(-0.020, 0.020)))  # ±2%
+            except:
+                pass
+            
+            # Method 4: Final fallback - simulated realistic price
+            import random
+            volatility = random.uniform(-0.025, 0.025)  # ±2.5% max volatility
+            return Decimal('1.0') + Decimal(str(volatility))
+            
+        except Exception as e:
+            self.logger.error(f"Failed to fetch DINARI price from APIs: {e}")
+            return None
 
     def _execute_dinari_algorithmic_rebase(self, args: Dict[str, Any], caller: str) -> Dict[str, Any]:
             """Execute algorithmic DINARI supply rebase to restore $1.00 USD peg"""
@@ -1473,7 +1551,7 @@ class DinariBlockchain:
         self.start_automatic_mining(15)  # Start mining with 15 second intervals
         self.start_automatic_price_updates(120)
         self.start_automatic_dinari_price_updates(180)
-        
+
         
         self.logger.info(f"DinariBlockchain initialized with {len(self.validators)} validators")
         self.logger.info(f"🚀 Automatic mining: {'ACTIVE' if self.mining_active else 'INACTIVE'}")
@@ -1665,84 +1743,6 @@ class DinariBlockchain:
         price_thread.start()
         self.logger.info(f"🌐 Started automatic API price updates every {interval} seconds")
     
-
-    def _fetch_dinari_price_from_apis(self) -> Optional[Decimal]:
-        """Fetch DINARI market price from external REST APIs"""
-        try:
-            # Method 1: Check if DINARI is listed on major exchanges
-            try:
-                # CoinGecko - if DINARI gets listed
-                response = requests.get(
-                    'https://api.coingecko.com/api/v3/simple/price?ids=dinari&vs_currencies=usd',
-                    timeout=10
-                )
-                if response.status_code == 200:
-                    data = response.json()
-                    if 'dinari' in data:
-                        return Decimal(str(data['dinari']['usd']))
-            except:
-                pass
-            
-            # Method 2: Use reference coins and simulate DINARI market price
-            try:
-                response = requests.get(
-                    'https://api.coingecko.com/api/v3/simple/price?ids=ethereum,bitcoin&vs_currencies=usd',
-                    timeout=10
-                )
-                if response.status_code == 200:
-                    data = response.json()
-                    if 'ethereum' in data:
-                        # Simulate DINARI market based on ETH volatility patterns
-                        import random
-                        base_dinari_price = Decimal('1.0')
-                        
-                        # Create realistic market volatility around $1.00
-                        import time
-                        current_minute = int(time.time()) // 60
-                        
-                        if current_minute % 10 == 0:  # Every 10 minutes, different market conditions
-                            # Simulate buying pressure
-                            market_movement = Decimal(str(random.uniform(0.005, 0.030)))  # 0.5-3% above
-                            dinari_price = base_dinari_price + market_movement
-                        elif current_minute % 10 == 1:
-                            # Simulate selling pressure
-                            market_movement = Decimal(str(random.uniform(-0.030, -0.005)))  # 0.5-3% below
-                            dinari_price = base_dinari_price + market_movement
-                        elif current_minute % 10 == 2:
-                            # Simulate high volatility
-                            market_movement = Decimal(str(random.uniform(-0.050, 0.050)))  # ±5%
-                            dinari_price = base_dinari_price + market_movement
-                        else:
-                            # Simulate normal conditions
-                            market_movement = Decimal(str(random.uniform(-0.010, 0.010)))  # ±1%
-                            dinari_price = base_dinari_price + market_movement
-                        
-                        return dinari_price
-            except:
-                pass
-            
-            # Method 3: Binance API reference
-            try:
-                response = requests.get(
-                    'https://api.binance.com/api/v3/ticker/price?symbol=ETHUSDT',
-                    timeout=10
-                )
-                if response.status_code == 200:
-                    # Use ETH as volatility reference for DINARI
-                    import random
-                    return Decimal('1.0') + Decimal(str(random.uniform(-0.020, 0.020)))  # ±2%
-            except:
-                pass
-            
-            # Method 4: Final fallback - simulated realistic price
-            import random
-            volatility = random.uniform(-0.025, 0.025)  # ±2.5% max volatility
-            return Decimal('1.0') + Decimal(str(volatility))
-            
-        except Exception as e:
-            self.logger.error(f"Failed to fetch DINARI price from APIs: {e}")
-            return None
-
     def stop_automatic_mining(self):
         """Stop automatic block mining"""
         self.mining_active = False
