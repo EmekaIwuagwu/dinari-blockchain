@@ -60,6 +60,76 @@ def find_available_port(start_port: int = 8333) -> int:
             continue
     return start_port  # Fallback to original port
 
+def handle_dinari_getDualTokenStatus(params):
+    """Get dual token (DINARI + AFC) status and canonical prices"""
+    try:
+        # Get current blockchain info
+        blockchain_info = blockchain.get_blockchain_info()
+        
+        # Get AFC supply from Afrocoin contract
+        try:
+            afc_result = blockchain.call_contract("afrocoin_stablecoin", {
+                "function": "get_total_afc_supply",
+                "args": {}
+            }, "system", Decimal("0"))
+            afc_supply = str(afc_result.get("total_afc_supply", "200000000"))
+        except:
+            afc_supply = "200000000"  # Default 200M AFC
+        
+        # Get current timestamp
+        from datetime import datetime
+        current_time = datetime.utcnow().isoformat() + 'Z'
+        
+        # Build dual token status response
+        dual_status = {
+            "dinari": {
+                "symbol": "DINARI",
+                "name": "Dinari Native Token",
+                "price_usd": "1.00",  # Canonical price authority
+                "supply_circulating": str(blockchain_info.get("total_dinari_supply", "0")),
+                "supply_max": "100000000",  # 100M max supply
+                "decimals": 18,
+                "contract_type": "native",
+                "oracle_status": "active",
+                "use_case": "gas_fees_governance"
+            },
+            "afc": {
+                "symbol": "AFC", 
+                "name": "Afrocoin Stablecoin",
+                "price_usd": "1.00",  # Canonical price authority
+                "supply_circulating": afc_supply,
+                "supply_max": "200000000",  # 200M max supply
+                "decimals": 18,
+                "contract_type": "stablecoin",
+                "contract_address": "afrocoin_stablecoin",
+                "oracle_status": "active",
+                "peg_mechanism": "dinari_collateral",
+                "use_case": "payments_transfers"
+            },
+            "price_authority": {
+                "canonical_source": "dinari_protocol",
+                "dinari_price_feed": "1.00",
+                "afc_price_feed": "1.00", 
+                "external_markets_follow": True,
+                "oracle_update_frequency": "60_seconds"
+            },
+            "network_stats": {
+                "block_height": blockchain_info.get("height", 0),
+                "total_validators": blockchain_info.get("validators", 0),
+                "total_contracts": blockchain_info.get("contracts", 0),
+                "total_transactions": blockchain_info.get("total_transactions", 0),
+                "mining_active": blockchain_info.get("mining_active", False)
+            },
+            "dual_oracle_active": True,
+            "protocol_version": "1.0.0",
+            "last_updated": current_time
+        }
+        
+        return {"success": True, "data": dual_status}
+        
+    except Exception as e:
+        return {"success": False, "error": f"Failed to get dual token status: {str(e)}"}
+
 P2P_PORT = find_available_port(int(os.getenv('P2P_PORT', 8333)))
 
 class DinariAddress:
@@ -967,6 +1037,21 @@ def rpc_handler():
                     result = blockchain.validators if hasattr(blockchain, 'validators') else []
                 else:
                     result = []
+            
+            elif method == "dinari_getDualTokenStatus":
+                    result = handle_dinari_getDualTokenStatus(params)
+                    if result["success"]:
+                        return jsonify({
+                            "jsonrpc": "2.0",
+                            "result": result["data"],
+                            "id": request_id
+                        })
+                    else:
+                        return jsonify({
+                            "jsonrpc": "2.0", 
+                            "error": {"code": -32603, "message": result["error"]},
+                            "id": request_id
+                        })
                     
             elif method == 'dinari_mineBlock':
                 validator = params[0] if params else "default_validator"
