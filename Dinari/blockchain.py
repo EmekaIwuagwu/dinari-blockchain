@@ -2625,6 +2625,14 @@ class DinariBlockchain:
         self.logger.info(f"✅ Genesis: 100M DINARI + 200M AFC created")
         self.logger.info("🪙 Afrocoin stablecoin contract deployed")
     
+    def get_chain_height(self):
+        """Get current blockchain height"""
+        try:
+            height = self.db.get("chain_height")
+            return int(height) if height else 0
+        except:
+            return 0
+    
     def add_transaction(self, transaction: Transaction) -> bool:
         """Add transaction to pending pool with enhanced validation"""
         try:
@@ -2649,36 +2657,62 @@ class DinariBlockchain:
             self.logger.error(f"Failed to add transaction: {e}")
             return False
     
-    def get_block_by_index(self, block_index: int) -> Optional[dict]:
-        """Get block by index - calls database layer"""
+    def get_block_by_index(self, block_number):
+        """NEW METHOD: Get block by index number"""
         try:
-            return self.db.get_block_by_index(block_index)
+            # Get hash from index
+            block_hash = self.db.get(f"block_index:{block_number}")
+            if not block_hash:
+                return None
+                
+            # Get block data by hash
+            block_data = self.db.get(f"block:{block_hash}")
+            return block_data
+            
         except Exception as e:
-            self.logger.error(f"Failed to get block {block_index}: {e}")
+            print(f"Error getting block {block_number}: {e}")
             return None
     
-    def get_recent_blocks(self, limit: int = 15) -> List[dict]:
-        """Get recent blocks efficiently"""
-        try:
-            blocks = []
-            current_height = self.chain_state.get("height", 0)
-            
-            # Get blocks from newest to oldest
-            start_index = max(0, current_height - limit)
-            
-            for i in range(current_height, start_index - 1, -1):
-                block = self.db.get_block_by_index(i)
-                if block:
-                    # Ensure block has index number
-                    block['number'] = i
-                    blocks.append(block)
-                    
-            return blocks
-            
-        except Exception as e:
-            self.logger.error(f"Failed to get recent blocks: {e}")
-            return []
+    def add_block_to_chain(self, block):
+        """Modified method to store blocks by both hash AND index"""
         
+        # Get block data
+        block_hash = block.get('hash') or block.hash
+        block_number = len(self.get_all_blocks())  # Or however you calculate block number
+        
+        # Store by hash (existing method)
+        self.db.put(f"block:{block_hash}", block_data)
+        
+        # NEW: Also store by index for easy retrieval
+        self.db.put(f"block_index:{block_number}", block_hash)
+        
+        # Update chain height
+        self.db.put("chain_height", str(block_number))
+        
+        print(f"✅ Block {block_number} stored with hash {block_hash}")
+        
+        def get_recent_blocks(self, limit: int = 15) -> List[dict]:
+            """Get recent blocks efficiently"""
+            try:
+                blocks = []
+                current_height = self.chain_state.get("height", 0)
+                
+                # Get blocks from newest to oldest
+                start_index = max(0, current_height - limit)
+                
+                for i in range(current_height, start_index - 1, -1):
+                    block = self.db.get_block_by_index(i)
+                    if block:
+                        # Ensure block has index number
+                        block['number'] = i
+                        blocks.append(block)
+                        
+                return blocks
+                
+            except Exception as e:
+                self.logger.error(f"Failed to get recent blocks: {e}")
+                return []
+            
     def get_all_transactions_in_recent_blocks(self, block_limit: int = 20) -> List[dict]:
         """Get all transactions from recent blocks"""
         try:
