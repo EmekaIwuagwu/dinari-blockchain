@@ -173,72 +173,6 @@ class SmartContract:
 
         self.execution_history: List[Dict[str, Any]] = []
     
-    def create_transaction_indices(self):
-        """Create transaction storage indices in LevelDB"""
-        try:
-            # Create index counters if they don't exist
-            if not self.db.get(b'tx_count'):
-                self.db.put(b'tx_count', b'0')
-            
-            print("✅ Transaction indices initialized")
-        except Exception as e:
-            print(f"❌ Error creating transaction indices: {e}")
-    
-    def store_transaction_permanently(self, transaction, block_number):
-        """Store transaction permanently with multiple indices for fast retrieval"""
-        try:
-            tx_hash = transaction.get('hash')
-            if not tx_hash:
-                print("❌ Transaction has no hash, cannot store")
-                return False
-            
-            # Get current transaction count
-            tx_count = int(self.db.get(b'tx_count') or b'0')
-            
-            # Store transaction with multiple keys for different access patterns:
-            
-            # 1. By hash (primary key) - for direct hash lookups
-            self.db.put(f"tx:hash:{tx_hash}".encode(), json.dumps({
-                'transaction': transaction,
-                'block_number': block_number,
-                'tx_index': tx_count,
-                'timestamp': transaction.get('timestamp', int(time.time()))
-            }).encode())
-            
-            # 2. By transaction index (for chronological pagination)
-            self.db.put(f"tx:index:{tx_count:010d}".encode(), json.dumps({
-                'hash': tx_hash,
-                'block_number': block_number,
-                'from_address': transaction.get('from_address'),
-                'to_address': transaction.get('to_address'),
-                'amount': transaction.get('amount'),
-                'timestamp': transaction.get('timestamp')
-            }).encode())
-            
-            # 3. By from_address (for address transaction history)
-            from_addr = transaction.get('from_address')
-            if from_addr:
-                self.db.put(f"tx:from:{from_addr}:{tx_count:010d}".encode(), tx_hash.encode())
-            
-            # 4. By to_address (for address transaction history)
-            to_addr = transaction.get('to_address')
-            if to_addr:
-                self.db.put(f"tx:to:{to_addr}:{tx_count:010d}".encode(), tx_hash.encode())
-            
-            # 5. By block number (for block transaction lookups)
-            self.db.put(f"tx:block:{block_number}:{tx_count:010d}".encode(), tx_hash.encode())
-            
-            # Update transaction count
-            self.db.put(b'tx_count', str(tx_count + 1).encode())
-            
-            print(f"✅ Stored transaction {tx_hash} permanently (index: {tx_count})")
-            return True
-            
-        except Exception as e:
-            print(f"❌ Error storing transaction: {e}")
-            return False
-    
-
     def get_all_transactions(self, start_index=0, limit=100, reverse=True):
         """Get transactions with pagination - NEVER loses old transactions"""
         try:
@@ -754,6 +688,128 @@ class DinariBlockchain:
             "contract_count": 0
         }
         return self.db.get_chain_state() or default_state
+    
+    def create_transaction_indices(self):
+        """Create transaction storage indices in LevelDB"""
+        try:
+            # Create index counters if they don't exist
+            if not self.db.get(b'tx_count'):
+                self.db.put(b'tx_count', b'0')
+            
+            print("✅ Transaction indices initialized")
+        except Exception as e:
+            print(f"❌ Error creating transaction indices: {e}")
+    
+    def store_transaction_permanently(self, transaction, block_number):
+        """Store transaction permanently with multiple indices for fast retrieval"""
+        try:
+            tx_hash = transaction.get('hash')
+            if not tx_hash:
+                print("❌ Transaction has no hash, cannot store")
+                return False
+            
+            # Get current transaction count
+            tx_count = int(self.db.get(b'tx_count') or b'0')
+            
+            # Store transaction with multiple keys for different access patterns:
+            
+            # 1. By hash (primary key) - for direct hash lookups
+            self.db.put(f"tx:hash:{tx_hash}".encode(), json.dumps({
+                'transaction': transaction,
+                'block_number': block_number,
+                'tx_index': tx_count,
+                'timestamp': transaction.get('timestamp', int(time.time()))
+            }).encode())
+            
+            # 2. By transaction index (for chronological pagination)
+            self.db.put(f"tx:index:{tx_count:010d}".encode(), json.dumps({
+                'hash': tx_hash,
+                'block_number': block_number,
+                'from_address': transaction.get('from_address'),
+                'to_address': transaction.get('to_address'),
+                'amount': transaction.get('amount'),
+                'timestamp': transaction.get('timestamp')
+            }).encode())
+            
+            # 3. By from_address (for address transaction history)
+            from_addr = transaction.get('from_address')
+            if from_addr:
+                self.db.put(f"tx:from:{from_addr}:{tx_count:010d}".encode(), tx_hash.encode())
+            
+            # 4. By to_address (for address transaction history)
+            to_addr = transaction.get('to_address')
+            if to_addr:
+                self.db.put(f"tx:to:{to_addr}:{tx_count:010d}".encode(), tx_hash.encode())
+            
+            # 5. By block number (for block transaction lookups)
+            self.db.put(f"tx:block:{block_number}:{tx_count:010d}".encode(), tx_hash.encode())
+            
+            # Update transaction count
+            self.db.put(b'tx_count', str(tx_count + 1).encode())
+            
+            print(f"✅ Stored transaction {tx_hash} permanently (index: {tx_count})")
+            return True
+            
+        except Exception as e:
+            print(f"❌ Error storing transaction: {e}")
+            return False
+    
+
+    def get_all_transactions(self, start_index=0, limit=100, reverse=True):
+        """Get transactions with pagination - NEVER loses old transactions"""
+        try:
+            transactions = []
+            
+            # Get total transaction count
+            total_count = int(self.db.get(b'tx_count') or b'0')
+            
+            if total_count == 0:
+                return {'transactions': [], 'total': 0, 'has_more': False}
+            
+            # Calculate range
+            if reverse:
+                # Start from newest transactions
+                end_index = total_count - start_index
+                start_scan = max(0, end_index - limit)
+                indices = range(end_index - 1, start_scan - 1, -1)
+            else:
+                # Start from oldest transactions
+                end_scan = min(total_count, start_index + limit)
+                indices = range(start_index, end_scan)
+            
+            # Retrieve transactions
+            for i in indices:
+                try:
+                    key = f"tx:index:{i:010d}".encode()
+                    data = self.db.get(key)
+                    if data:
+                        tx_meta = json.loads(data.decode())
+                        
+                        # Get full transaction details
+                        full_tx_data = self.db.get(f"tx:hash:{tx_meta['hash']}".encode())
+                        if full_tx_data:
+                            full_tx = json.loads(full_tx_data.decode())
+                            transactions.append(full_tx['transaction'])
+                        
+                except Exception as e:
+                    print(f"Error retrieving transaction at index {i}: {e}")
+                    continue
+            
+            has_more = (reverse and start_index + limit < total_count) or \
+                      (not reverse and start_index + len(transactions) < total_count)
+            
+            return {
+                'transactions': transactions,
+                'total': total_count,
+                'has_more': has_more,
+                'start_index': start_index
+            }
+            
+        except Exception as e:
+            print(f"❌ Error getting all transactions: {e}")
+            return {'transactions': [], 'total': 0, 'has_more': False}
+
+    
 
     def _save_chain_state(self):
         """Save blockchain state to LevelDB"""
