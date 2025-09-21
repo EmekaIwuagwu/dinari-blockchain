@@ -803,30 +803,31 @@ class DinariBlockchain:
         return self.chain_state.get("height", 0)
 
     def get_block_by_index(self, block_number):
-        """Get block by index number - SAFE VERSION"""
+        """Get block by index number - NO ITERATOR VERSION"""
         try:
-            # First try to get hash from index mapping
+            # Try to get hash from index mapping first
             block_hash = self.db.get(f"block_index:{block_number}")
             if block_hash:
-                # Get block data by hash
-                return self.db.get(f"block:{block_hash}")
+                block_data = self.db.get(f"block:{block_hash}")
+                if block_data:
+                    return block_data
             
-            # Fallback: if no index mapping exists, search through all blocks
+            # If no index mapping, try direct block lookup by number
+            # This is a fallback for blocks stored without index mapping
             try:
-                # Try using the iterator if available
-                for key_bytes, value_bytes in self.db.iterator():
-                    key = key_bytes.decode()
-                    if key.startswith("block:") and not key.startswith("block_index:"):
-                        try:
-                            block_data = json.loads(value_bytes.decode())
-                            if block_data.get('index') == block_number:
-                                return block_data
-                        except:
-                            continue
-            except AttributeError:
-                # Iterator not available, return None
-                print(f"Warning: iterator not available for DinariLevelDB")
-                return None
+                # Try common block key patterns
+                possible_keys = [
+                    f"block_{block_number}",
+                    f"block:{block_number}", 
+                    str(block_number)
+                ]
+                
+                for key in possible_keys:
+                    block_data = self.db.get(key)
+                    if block_data:
+                        return block_data
+            except:
+                pass
             
             return None
             
@@ -835,35 +836,39 @@ class DinariBlockchain:
             return None
 
     def create_index_mapping_for_existing_blocks(self):
-        """Create index mapping for existing blocks"""
+        """Create index mapping without using iterator"""
         try:
-            self.logger.info("Creating index mapping for existing blocks...")
+            print("Creating index mapping for existing blocks...")
             
-            blocks = []
-            for key_bytes, value_bytes in self.db.iterator():
-                key = key_bytes.decode()
-                if key.startswith("block:") and not key.startswith("block_index:"):
+            # Since iterator doesn't work, we'll check for blocks by trying common patterns
+            blocks_found = []
+            
+            # Try to find blocks up to a reasonable limit
+            for i in range(100):  # Check first 100 possible blocks
+                block_data = self.db.get(f"block:{i}")  # Try direct key access
+                if block_data:
                     try:
-                        block_data = json.loads(value_bytes.decode())
-                        blocks.append((block_data.get('index', 0), block_data.get('hash')))
+                        if isinstance(block_data, dict):
+                            blocks_found.append((i, block_data.get('hash', f'block_{i}')))
+                        else:
+                            blocks_found.append((i, f'block_{i}'))
                     except:
                         continue
-
-            blocks.sort(key=lambda x: x[0])
             
-            for block_number, block_hash in blocks:
+            # Create index mappings for found blocks
+            for block_number, block_hash in blocks_found:
                 self.db.put(f"block_index:{block_number}", block_hash)
-                self.logger.info(f"Mapped block {block_number} -> {block_hash[:16]}...")
-
-            if blocks:
-                max_height = max(block[0] for block in blocks)
+                print(f"Mapped block {block_number} -> {block_hash}")
+            
+            if blocks_found:
+                max_height = max(block[0] for block in blocks_found)
                 self.db.put("chain_height", str(max_height))
-                self.logger.info(f"Set chain height to {max_height}")
+                print(f"Set chain height to {max_height}")
                 
-            self.logger.info(f"Index mapping complete for {len(blocks)} blocks")
+            print(f"Index mapping complete for {len(blocks_found)} blocks")
             
         except Exception as e:
-            self.logger.error(f"Error creating index mapping: {e}")
+            print(f"Error creating index mapping: {e}")
 
     def start_automatic_mining(self, interval: int = 15):
         """Start automatic block mining"""
