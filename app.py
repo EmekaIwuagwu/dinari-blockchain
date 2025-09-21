@@ -229,7 +229,7 @@ def handle_dinari_getTransaction(params):
 
 
 def handle_dinari_getRecentBlocks(params):
-    """Get recent blocks - FIXED JSON serialization"""
+    """Get recent blocks - ULTRA SAFE DEBUG VERSION"""
     try:
         limit = int(params[0]) if params and len(params) > 0 else 10
         limit = min(limit, 50)
@@ -237,34 +237,84 @@ def handle_dinari_getRecentBlocks(params):
         if not blockchain:
             return {"blocks": [], "total": 0}
         
+        print("DEBUG: Getting recent blocks...")
         recent_blocks = blockchain.get_recent_blocks(limit)
+        print(f"DEBUG: Got {len(recent_blocks)} blocks")
         
         formatted_blocks = []
-        for block in recent_blocks:
-            # Safe size calculation without JSON serialization
-            block_size = 1024 + (len(block.get('transactions', [])) * 256)
-            
-            block_info = {
-                "number": block.get('number', block.get('index', 0)),
-                "hash": str(block.get('hash', '')),
-                "timestamp": int(block.get('timestamp', 0)),
-                "transaction_count": len(block.get('transactions', [])),
-                "gas_used": str(block.get('gas_used', 0)),
-                "validator": str(block.get('validator', 'system')),
-                "size": block_size  # Fixed: no JSON serialization
-            }
-            formatted_blocks.append(block_info)
         
-        return {
+        for i, block in enumerate(recent_blocks):
+            print(f"DEBUG: Processing block {i}")
+            try:
+                # Ultra-safe extraction with type conversion
+                number = 0
+                try:
+                    number = int(block.get('number', block.get('index', 0)))
+                except:
+                    number = i
+                
+                hash_val = ""
+                try:
+                    hash_val = str(block.get('hash', ''))
+                except:
+                    hash_val = f"block_{i}"
+                
+                timestamp = 0
+                try:
+                    timestamp = int(float(str(block.get('timestamp', 0))))
+                except:
+                    timestamp = int(time.time())
+                
+                tx_count = 0
+                try:
+                    transactions = block.get('transactions', [])
+                    tx_count = len(transactions) if transactions else 0
+                except:
+                    tx_count = 0
+                
+                gas_used = "0"
+                try:
+                    gas_used = str(block.get('gas_used', 0))
+                except:
+                    gas_used = "0"
+                
+                validator = "system"
+                try:
+                    validator = str(block.get('validator', 'system'))
+                except:
+                    validator = "system"
+                
+                block_info = {
+                    "number": number,
+                    "hash": hash_val,
+                    "timestamp": timestamp,
+                    "transaction_count": tx_count,
+                    "gas_used": gas_used,
+                    "validator": validator,
+                    "size": 1024 + (tx_count * 256)
+                }
+                
+                print(f"DEBUG: Block {i} formatted successfully")
+                formatted_blocks.append(block_info)
+                
+            except Exception as block_error:
+                print(f"DEBUG: Error processing block {i}: {block_error}")
+                # Skip problematic blocks
+                continue
+        
+        result = {
             "blocks": formatted_blocks,
             "total": len(formatted_blocks)
         }
         
+        print(f"DEBUG: Returning {len(formatted_blocks)} blocks")
+        return result
+        
     except Exception as e:
-        print(f"Error in getRecentBlocks: {e}")
+        print(f"ERROR in getRecentBlocks: {e}")
         import traceback
         traceback.print_exc()
-        return {"blocks": [], "total": 0}
+        return {"blocks": [], "total": 0, "error": str(e)}
 
 
 def handle_dinari_getRecentTransactions(params):
