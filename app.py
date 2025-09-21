@@ -229,18 +229,18 @@ def handle_dinari_getTransaction(params):
 
 
 def handle_dinari_getRecentBlocks(params):
-    """Get recent blocks - FIXED to return array"""
+    """Get recent blocks - FIXED to return proper format"""
     try:
         limit = int(params[0]) if params and len(params) > 0 else 10
         limit = min(limit, 50)
         
         if not blockchain:
-            return []
+            return {"blocks": [], "total": 0}
         
-        # Get recent blocks from blockchain
+        # Get recent blocks using the corrected blockchain method
         recent_blocks = blockchain.get_recent_blocks(limit)
         
-        # Format each block for frontend
+        # Format blocks for frontend
         formatted_blocks = []
         for block in recent_blocks:
             block_info = {
@@ -249,17 +249,20 @@ def handle_dinari_getRecentBlocks(params):
                 "timestamp": block.get('timestamp', 0),
                 "transaction_count": len(block.get('transactions', [])),
                 "gas_used": str(block.get('gas_used', 0)),
-                "validator": block.get('validator', ''),
+                "validator": block.get('validator', 'system'),
                 "size": len(json.dumps(block))
             }
             formatted_blocks.append(block_info)
         
-        print(f"Returning {len(formatted_blocks)} blocks to frontend")
-        return formatted_blocks  # Return ARRAY, not single object
+        # Return in the format frontend expects
+        return {
+            "blocks": formatted_blocks,  # Frontend looks for result.blocks
+            "total": len(formatted_blocks)
+        }
         
     except Exception as e:
         print(f"Error in getRecentBlocks: {e}")
-        return []  # Return empty array on error
+        return {"blocks": [], "total": 0}
 
 
 def handle_dinari_getRecentTransactions(params):
