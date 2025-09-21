@@ -803,28 +803,35 @@ class DinariBlockchain:
         return self.chain_state.get("height", 0)
 
     def get_block_by_index(self, block_number):
-        """Get block by index number"""
+        """Get block by index number - SAFE VERSION"""
         try:
-            # Try to get hash from index mapping
+            # First try to get hash from index mapping
             block_hash = self.db.get(f"block_index:{block_number}")
             if block_hash:
+                # Get block data by hash
                 return self.db.get(f"block:{block_hash}")
             
-            # Fallback: search through all blocks
-            for key_bytes, value_bytes in self.db.iterator():
-                key = key_bytes.decode()
-                if key.startswith("block:") and not key.startswith("block_index:"):
-                    try:
-                        block_data = json.loads(value_bytes.decode())
-                        if block_data.get('index') == block_number:
-                            return block_data
-                    except:
-                        continue
+            # Fallback: if no index mapping exists, search through all blocks
+            try:
+                # Try using the iterator if available
+                for key_bytes, value_bytes in self.db.iterator():
+                    key = key_bytes.decode()
+                    if key.startswith("block:") and not key.startswith("block_index:"):
+                        try:
+                            block_data = json.loads(value_bytes.decode())
+                            if block_data.get('index') == block_number:
+                                return block_data
+                        except:
+                            continue
+            except AttributeError:
+                # Iterator not available, return None
+                print(f"Warning: iterator not available for DinariLevelDB")
+                return None
             
             return None
             
         except Exception as e:
-            self.logger.error(f"Error getting block {block_number}: {e}")
+            print(f"Error getting block {block_number}: {e}")
             return None
 
     def create_index_mapping_for_existing_blocks(self):
