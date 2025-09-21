@@ -811,7 +811,7 @@ class DinariBlockchain:
                 return self.db.get(f"block:{block_hash}")
             
             # Fallback: search through all blocks
-            for key_bytes, value_bytes in self.db.db.iterator():
+            for key_bytes, value_bytes in self.db.iterator():
                 key = key_bytes.decode()
                 if key.startswith("block:") and not key.startswith("block_index:"):
                     try:
@@ -833,7 +833,7 @@ class DinariBlockchain:
             self.logger.info("Creating index mapping for existing blocks...")
             
             blocks = []
-            for key_bytes, value_bytes in self.db.db.iterator():
+            for key_bytes, value_bytes in self.db.iterator():
                 key = key_bytes.decode()
                 if key.startswith("block:") and not key.startswith("block_index:"):
                     try:
