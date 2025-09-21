@@ -10,6 +10,7 @@ import time
 import logging
 import psycopg2
 import redis
+import plyvel
 from typing import Dict, List, Any, Optional
 from decimal import Decimal
 from datetime import datetime
@@ -18,6 +19,82 @@ import threading
 # Database configuration from environment
 DATABASE_URL = os.getenv('DATABASE_URL', 'postgresql://dinari:password@localhost:5432/dinari_blockchain')
 REDIS_URL = os.getenv('REDIS_URL', 'redis://localhost:6379/0')
+
+
+class DinariLevelDB:
+    """LevelDB storage for blockchain data"""
+    
+    def __init__(self, db_path: str = "./dinari_data"):
+        self.db_path = db_path
+        self._db = None
+        self._open_db()
+        
+    def _open_db(self):
+        """Open LevelDB database"""
+        try:
+            import os
+            os.makedirs(self.db_path, exist_ok=True)
+            self._db = plyvel.DB(self.db_path, create_if_missing=True)
+            print(f"✅ LevelDB opened: {self.db_path}")
+        except Exception as e:
+            print(f"❌ LevelDB error: {e}")
+            raise
+
+    def close(self):
+        """Close database"""
+        if self._db:
+            self._db.close()
+            print("✅ LevelDB closed")
+
+    def put(self, key: str, value: any):
+        """Store key-value pair"""
+        if isinstance(value, str):
+            value = value.encode('utf-8')
+        elif not isinstance(value, bytes):
+            value = json.dumps(value).encode('utf-8')
+        
+        self._db.put(key.encode('utf-8'), value)
+
+    def get(self, key: str):
+        """Get value by key"""
+        try:
+            result = self._db.get(key.encode('utf-8'))
+            if result:
+                try:
+                    return json.loads(result.decode('utf-8'))
+                except:
+                    return result.decode('utf-8')
+            return None
+        except:
+            return None
+
+    def iterator(self):
+        """Iterate over all key-value pairs"""
+        return self._db.iterator()
+
+    def store_block(self, block_hash: str, block_data: dict):
+        """Store a block"""
+        self.put(f"block:{block_hash}", block_data)
+
+    def get_block(self, block_hash: str):
+        """Get a block by hash"""
+        return self.get(f"block:{block_hash}")
+
+    def store_transaction(self, tx_hash: str, tx_data: dict):
+        """Store a transaction"""
+        self.put(f"transaction:{tx_hash}", tx_data)
+
+    def get_transaction(self, tx_hash: str):
+        """Get a transaction by hash"""
+        return self.get(f"transaction:{tx_hash}")
+
+    def store_chain_state(self, state: dict):
+        """Store blockchain state"""
+        self.put("chain_state", state)
+
+    def get_chain_state(self):
+        """Get blockchain state"""
+        return self.get("chain_state")
 
 class DatabaseManager:
     """Simple database manager for DinariBlockchain"""
