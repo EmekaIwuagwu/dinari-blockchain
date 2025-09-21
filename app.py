@@ -228,7 +228,7 @@ def handle_dinari_getTransaction(params):
         return {"success": False, "error": f"Failed to get transaction: {str(e)}"}
 
 def handle_dinari_getRecentTransactions(params):
-    """Get recent transactions from blocks directly - FIXED VERSION"""
+    """Get recent transactions from blocks - FULL SCAN VERSION"""
     try:
         limit = int(params[0]) if params and len(params) > 0 else 20
         
@@ -237,26 +237,36 @@ def handle_dinari_getRecentTransactions(params):
         
         transactions = []
         
-        # Get chain height (this works)
+        # Get chain height
         chain_height = blockchain.get_chain_height()
         print(f"DEBUG: Chain height = {chain_height}")
         
         if chain_height == 0:
             return {"success": True, "data": {"transactions": [], "total": 0}}
         
-        # Read transactions directly from blocks (same pattern as working blocks handler)
-        for block_num in range(chain_height - 1, -1, -1):  # Start from latest block
+        # IMPROVED: Scan more blocks to find all transactions
+        # For small chains, scan everything. For large chains, scan last 50 blocks + genesis
+        blocks_to_scan = []
+        
+        if chain_height <= 50:
+            # Small chain: scan all blocks
+            blocks_to_scan = list(range(chain_height - 1, -1, -1))  # All blocks, newest first
+        else:
+            # Large chain: scan last 50 blocks + genesis block (0)
+            recent_blocks = list(range(chain_height - 1, max(0, chain_height - 50), -1))
+            blocks_to_scan = recent_blocks + [0]  # Recent blocks + genesis
+        
+        print(f"DEBUG: Scanning blocks: {blocks_to_scan[:10]}...")  # Show first 10
+        
+        for block_num in blocks_to_scan:
             if len(transactions) >= limit:
                 break
                 
             try:
-                # Use the same method that works for blocks
                 block_data = blockchain.get_block_by_index(block_num)
                 if not block_data:
-                    print(f"DEBUG: No data for block {block_num}")
                     continue
                 
-                # Extract transactions from this block
                 block_transactions = block_data.get('transactions', [])
                 print(f"DEBUG: Block {block_num} has {len(block_transactions)} transactions")
                 
@@ -264,7 +274,6 @@ def handle_dinari_getRecentTransactions(params):
                     if len(transactions) >= limit:
                         break
                     
-                    # Build transaction info from real block data
                     tx_info = {
                         "hash": tx.get('hash', f"tx_{block_num}_{len(transactions)}"),
                         "block_number": block_num,
@@ -277,13 +286,12 @@ def handle_dinari_getRecentTransactions(params):
                         "status": "success"
                     }
                     transactions.append(tx_info)
-                    print(f"DEBUG: Added transaction from {tx_info['from_address']} to {tx_info['to_address']}")
                 
             except Exception as e:
                 print(f"DEBUG: Error processing block {block_num}: {e}")
                 continue
         
-        print(f"DEBUG: Returning {len(transactions)} transactions")
+        print(f"DEBUG: Returning {len(transactions)} total transactions")
         
         return {
             "success": True,
