@@ -977,6 +977,7 @@ def initialize_blockchain():
         
         # Create blockchain instance first (auto-starts mining and validators)
         blockchain = DinariBlockchain()
+        test_blockchain_methods()
         
         # Create contract manager
         contract_manager = ContractManager(blockchain)
