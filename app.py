@@ -119,6 +119,300 @@ def handle_dinari_getDualTokenStatus(params):
     except Exception as e:
         return {"success": False, "error": f"Failed to get dual token status: {str(e)}"}
 
+def handle_dinari_getBlock(params):
+    """Get detailed block information by block number"""
+    try:
+        if not params or len(params) < 1:
+            return {"success": False, "error": "Block number parameter required"}
+        
+        block_number = int(params[0])
+        
+        if not blockchain:
+            return {"success": False, "error": "Blockchain not available"}
+        
+        # Get block data from blockchain
+        try:
+            if hasattr(blockchain, 'get_block'):
+                block = blockchain.get_block(block_number)
+            elif hasattr(blockchain, 'chain') and block_number < len(blockchain.chain):
+                block = blockchain.chain[block_number]
+            else:
+                return {"success": False, "error": f"Block {block_number} not found"}
+            
+            if not block:
+                return {"success": False, "error": f"Block {block_number} not found"}
+            
+            # Format block data
+            block_data = {
+                "number": block_number,
+                "hash": block.get('hash') if hasattr(block, 'get') else getattr(block, 'hash', f"0x{block_number:064x}"),
+                "parent_hash": block.get('previous_hash') if hasattr(block, 'get') else getattr(block, 'previous_hash', f"0x{(block_number-1):064x}"),
+                "timestamp": block.get('timestamp') if hasattr(block, 'get') else getattr(block, 'timestamp', int(time.time())),
+                "transactions": [],
+                "transaction_count": 0,
+                "gas_used": "0",
+                "gas_limit": "30000000",
+                "validator": block.get('validator') if hasattr(block, 'get') else getattr(block, 'validator', 'system'),
+                "size": 1024,  # Default size
+                "difficulty": "1"
+            }
+            
+            # Get transactions in block
+            if hasattr(block, 'transactions'):
+                transactions = block.transactions if isinstance(block.transactions, list) else []
+                block_data["transaction_count"] = len(transactions)
+                block_data["transactions"] = []
+                
+                total_gas = 0
+                for i, tx in enumerate(transactions):
+                    if hasattr(tx, 'get_hash'):
+                        tx_hash = tx.get_hash()
+                    elif hasattr(tx, 'hash'):
+                        tx_hash = tx.hash
+                    else:
+                        tx_hash = f"0x{hash(str(tx)):064x}"
+                    
+                    tx_data = {
+                        "hash": tx_hash,
+                        "from_address": getattr(tx, 'from_address', 'unknown'),
+                        "to_address": getattr(tx, 'to_address', 'unknown'), 
+                        "amount": str(getattr(tx, 'amount', '0')),
+                        "gas_price": str(getattr(tx, 'gas_price', '1000000000')),
+                        "gas_limit": str(getattr(tx, 'gas_limit', '21000')),
+                        "nonce": getattr(tx, 'nonce', 0),
+                        "data": getattr(tx, 'data', ''),
+                        "transaction_index": i
+                    }
+                    block_data["transactions"].append(tx_data)
+                    total_gas += int(tx_data["gas_limit"])
+                
+                block_data["gas_used"] = str(total_gas)
+            
+            return {"success": True, "data": block_data}
+            
+        except Exception as e:
+            return {"success": False, "error": f"Failed to get block: {str(e)}"}
+        
+    except Exception as e:
+        return {"success": False, "error": f"Failed to get block: {str(e)}"}
+
+
+def handle_dinari_getTransaction(params):
+    """Get detailed transaction information by transaction hash"""
+    try:
+        if not params or len(params) < 1:
+            return {"success": False, "error": "Transaction hash parameter required"}
+        
+        tx_hash = params[0]
+        
+        if not blockchain:
+            return {"success": False, "error": "Blockchain not available"}
+        
+        # Search for transaction in all blocks
+        if hasattr(blockchain, 'chain'):
+            for block_index, block in enumerate(blockchain.chain):
+                if hasattr(block, 'transactions'):
+                    for tx_index, tx in enumerate(block.transactions):
+                        # Check if this is the transaction we're looking for
+                        current_hash = None
+                        if hasattr(tx, 'get_hash'):
+                            current_hash = tx.get_hash()
+                        elif hasattr(tx, 'hash'):
+                            current_hash = tx.hash
+                        
+                        if current_hash == tx_hash:
+                            # Found the transaction
+                            tx_data = {
+                                "hash": tx_hash,
+                                "block_number": block_index,
+                                "block_hash": getattr(block, 'hash', f"0x{block_index:064x}"),
+                                "transaction_index": tx_index,
+                                "from_address": getattr(tx, 'from_address', 'unknown'),
+                                "to_address": getattr(tx, 'to_address', 'unknown'),
+                                "amount": str(getattr(tx, 'amount', '0')),
+                                "gas_price": str(getattr(tx, 'gas_price', '1000000000')),
+                                "gas_limit": str(getattr(tx, 'gas_limit', '21000')),
+                                "gas_used": str(getattr(tx, 'gas_limit', '21000')),  # Assume all gas used
+                                "nonce": getattr(tx, 'nonce', 0),
+                                "data": getattr(tx, 'data', ''),
+                                "status": "success",
+                                "timestamp": getattr(block, 'timestamp', int(time.time())),
+                                "confirmations": len(blockchain.chain) - block_index - 1
+                            }
+                            
+                            return {"success": True, "data": tx_data}
+        
+        return {"success": False, "error": "Transaction not found"}
+        
+    except Exception as e:
+        return {"success": False, "error": f"Failed to get transaction: {str(e)}"}
+
+
+def handle_dinari_getRecentBlocks(params):
+    """Get recent blocks with summary information"""
+    try:
+        limit = int(params[0]) if params and len(params) > 0 else 15
+        limit = min(limit, 50)  # Max 50 blocks
+        
+        if not blockchain:
+            return {"success": False, "error": "Blockchain not available"}
+        
+        blocks = []
+        
+        if hasattr(blockchain, 'chain'):
+            chain_length = len(blockchain.chain)
+            start_index = max(0, chain_length - limit)
+            
+            for i in range(chain_length - 1, start_index - 1, -1):  # Newest first
+                try:
+                    block = blockchain.chain[i]
+                    
+                    # Count transactions
+                    tx_count = 0
+                    total_gas = 0
+                    if hasattr(block, 'transactions'):
+                        tx_count = len(block.transactions)
+                        for tx in block.transactions:
+                            total_gas += int(getattr(tx, 'gas_limit', '21000'))
+                    
+                    block_data = {
+                        "number": i,
+                        "hash": getattr(block, 'hash', f"0x{i:064x}"),
+                        "timestamp": getattr(block, 'timestamp', int(time.time())),
+                        "transaction_count": tx_count,
+                        "gas_used": str(total_gas),
+                        "validator": getattr(block, 'validator', 'system'),
+                        "size": 1024 + (tx_count * 256)  # Estimated size
+                    }
+                    
+                    blocks.append(block_data)
+                    
+                except Exception as e:
+                    continue  # Skip problematic blocks
+        
+        return {"success": True, "data": {"blocks": blocks, "total": len(blocks)}}
+        
+    except Exception as e:
+        return {"success": False, "error": f"Failed to get recent blocks: {str(e)}"}
+
+
+def handle_dinari_getRecentTransactions(params):
+    """Get recent transactions across all blocks"""
+    try:
+        limit = int(params[0]) if params and len(params) > 0 else 20
+        limit = min(limit, 100)  # Max 100 transactions
+        
+        if not blockchain:
+            return {"success": False, "error": "Blockchain not available"}
+        
+        transactions = []
+        
+        if hasattr(blockchain, 'chain'):
+            # Go through blocks from newest to oldest
+            for block_index in range(len(blockchain.chain) - 1, -1, -1):
+                if len(transactions) >= limit:
+                    break
+                    
+                try:
+                    block = blockchain.chain[block_index]
+                    
+                    if hasattr(block, 'transactions'):
+                        # Go through transactions in reverse order (newest first)
+                        for tx_index in range(len(block.transactions) - 1, -1, -1):
+                            if len(transactions) >= limit:
+                                break
+                                
+                            tx = block.transactions[tx_index]
+                            
+                            # Generate hash if not available
+                            tx_hash = None
+                            if hasattr(tx, 'get_hash'):
+                                tx_hash = tx.get_hash()
+                            elif hasattr(tx, 'hash'):
+                                tx_hash = tx.hash
+                            else:
+                                tx_hash = f"0x{hash(f'{block_index}_{tx_index}_{str(tx)}'):064x}"
+                            
+                            tx_data = {
+                                "hash": tx_hash,
+                                "block_number": block_index,
+                                "from_address": getattr(tx, 'from_address', 'unknown'),
+                                "to_address": getattr(tx, 'to_address', 'unknown'),
+                                "amount": str(getattr(tx, 'amount', '0')),
+                                "gas_price": str(getattr(tx, 'gas_price', '1000000000')),
+                                "gas_used": str(getattr(tx, 'gas_limit', '21000')),
+                                "timestamp": getattr(block, 'timestamp', int(time.time())),
+                                "status": "success"
+                            }
+                            
+                            transactions.append(tx_data)
+                            
+                except Exception as e:
+                    continue  # Skip problematic blocks
+        
+        return {"success": True, "data": {"transactions": transactions, "total": len(transactions)}}
+        
+    except Exception as e:
+        return {"success": False, "error": f"Failed to get recent transactions: {str(e)}"}
+
+
+def handle_dinari_getBlockTransactions(params):
+    """Get all transactions in a specific block"""
+    try:
+        if not params or len(params) < 1:
+            return {"success": False, "error": "Block number parameter required"}
+        
+        block_number = int(params[0])
+        
+        if not blockchain:
+            return {"success": False, "error": "Blockchain not available"}
+        
+        try:
+            if hasattr(blockchain, 'chain') and block_number < len(blockchain.chain):
+                block = blockchain.chain[block_number]
+            else:
+                return {"success": False, "error": f"Block {block_number} not found"}
+            
+            transactions = []
+            
+            if hasattr(block, 'transactions'):
+                for tx_index, tx in enumerate(block.transactions):
+                    # Generate hash if not available
+                    tx_hash = None
+                    if hasattr(tx, 'get_hash'):
+                        tx_hash = tx.get_hash()
+                    elif hasattr(tx, 'hash'):
+                        tx_hash = tx.hash
+                    else:
+                        tx_hash = f"0x{hash(f'{block_number}_{tx_index}_{str(tx)}'):064x}"
+                    
+                    tx_data = {
+                        "hash": tx_hash,
+                        "transaction_index": tx_index,
+                        "from_address": getattr(tx, 'from_address', 'unknown'),
+                        "to_address": getattr(tx, 'to_address', 'unknown'),
+                        "amount": str(getattr(tx, 'amount', '0')),
+                        "gas_price": str(getattr(tx, 'gas_price', '1000000000')),
+                        "gas_limit": str(getattr(tx, 'gas_limit', '21000')),
+                        "nonce": getattr(tx, 'nonce', 0),
+                        "data": getattr(tx, 'data', ''),
+                        "status": "success"
+                    }
+                    
+                    transactions.append(tx_data)
+            
+            return {"success": True, "data": {
+                "block_number": block_number,
+                "transactions": transactions,
+                "transaction_count": len(transactions)
+            }}
+            
+        except Exception as e:
+            return {"success": False, "error": f"Failed to get block transactions: {str(e)}"}
+        
+    except Exception as e:
+        return {"success": False, "error": f"Failed to get block transactions: {str(e)}"}
+
 def handle_dinari_estimateGas(params):
     """Estimate gas cost for a transaction"""
     try:
@@ -1350,7 +1644,7 @@ def rpc_handler():
                         "id": data.get("id", 1)
                     })
             
-            # ========== NEW PRIORITY 1 RPC METHODS ==========
+            # ========== PRIORITY 1 RPC METHODS ==========
             elif method == "dinari_getTransactionHistory":
                 result = handle_dinari_getTransactionHistory(params)
                 if result["success"]:
@@ -1425,7 +1719,83 @@ def rpc_handler():
                         "error": {"code": -32603, "message": result["error"]},
                         "id": data.get("id", 1)
                     })
-            # ========== END NEW METHODS ==========
+
+            # ========== NEW BLOCKCHAIN EXPLORER METHODS ==========
+            elif method == "dinari_getBlock":
+                result = handle_dinari_getBlock(params)
+                if result["success"]:
+                    return jsonify({
+                        "jsonrpc": "2.0",
+                        "result": result["data"],
+                        "id": data.get("id", 1)
+                    })
+                else:
+                    return jsonify({
+                        "jsonrpc": "2.0",
+                        "error": {"code": -32603, "message": result["error"]},
+                        "id": data.get("id", 1)
+                    })
+
+            elif method == "dinari_getTransaction":
+                result = handle_dinari_getTransaction(params)
+                if result["success"]:
+                    return jsonify({
+                        "jsonrpc": "2.0",
+                        "result": result["data"],
+                        "id": data.get("id", 1)
+                    })
+                else:
+                    return jsonify({
+                        "jsonrpc": "2.0",
+                        "error": {"code": -32603, "message": result["error"]},
+                        "id": data.get("id", 1)
+                    })
+
+            elif method == "dinari_getRecentBlocks":
+                result = handle_dinari_getRecentBlocks(params)
+                if result["success"]:
+                    return jsonify({
+                        "jsonrpc": "2.0",
+                        "result": result["data"],
+                        "id": data.get("id", 1)
+                    })
+                else:
+                    return jsonify({
+                        "jsonrpc": "2.0",
+                        "error": {"code": -32603, "message": result["error"]},
+                        "id": data.get("id", 1)
+                    })
+
+            elif method == "dinari_getRecentTransactions":
+                result = handle_dinari_getRecentTransactions(params)
+                if result["success"]:
+                    return jsonify({
+                        "jsonrpc": "2.0",
+                        "result": result["data"],
+                        "id": data.get("id", 1)
+                    })
+                else:
+                    return jsonify({
+                        "jsonrpc": "2.0",
+                        "error": {"code": -32603, "message": result["error"]},
+                        "id": data.get("id", 1)
+                    })
+
+            elif method == "dinari_getBlockTransactions":
+                result = handle_dinari_getBlockTransactions(params)
+                if result["success"]:
+                    return jsonify({
+                        "jsonrpc": "2.0",
+                        "result": result["data"],
+                        "id": data.get("id", 1)
+                    })
+                else:
+                    return jsonify({
+                        "jsonrpc": "2.0",
+                        "error": {"code": -32603, "message": result["error"]},
+                        "id": data.get("id", 1)
+                    })
+            # ========== END BLOCKCHAIN EXPLORER METHODS ==========
                     
             elif method == 'dinari_mineBlock':
                 validator = params[0] if params else "default_validator"
