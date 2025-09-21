@@ -228,86 +228,73 @@ def handle_dinari_getTransaction(params):
         return {"success": False, "error": f"Failed to get transaction: {str(e)}"}
 
 def handle_dinari_getRecentTransactions(params):
-    """Get recent transactions - DEBUG VERSION"""
+    """Get recent transactions from blocks directly - FIXED VERSION"""
     try:
         limit = int(params[0]) if params and len(params) > 0 else 20
-        limit = min(limit, 100)
         
         if not blockchain:
             return {"success": False, "error": "Blockchain not available"}
         
-        print("DEBUG: Getting recent transactions...")
-        recent_transactions = blockchain.get_recent_transactions(limit)
-        print(f"DEBUG: Got {len(recent_transactions) if recent_transactions else 0} transactions")
+        transactions = []
         
-        if recent_transactions:
-            print(f"DEBUG: First transaction type: {type(recent_transactions[0])}")
-            print(f"DEBUG: First transaction data: {recent_transactions[0]}")
+        # Get chain height (this works)
+        chain_height = blockchain.get_chain_height()
+        print(f"DEBUG: Chain height = {chain_height}")
         
-        formatted_transactions = []
+        if chain_height == 0:
+            return {"success": True, "data": {"transactions": [], "total": 0}}
         
-        for i, tx in enumerate(recent_transactions):
+        # Read transactions directly from blocks (same pattern as working blocks handler)
+        for block_num in range(chain_height - 1, -1, -1):  # Start from latest block
+            if len(transactions) >= limit:
+                break
+                
             try:
-                print(f"DEBUG: Processing transaction {i}, type: {type(tx)}")
+                # Use the same method that works for blocks
+                block_data = blockchain.get_block_by_index(block_num)
+                if not block_data:
+                    print(f"DEBUG: No data for block {block_num}")
+                    continue
                 
-                # Handle different transaction formats
-                if isinstance(tx, dict):
-                    # Transaction is already a dictionary
+                # Extract transactions from this block
+                block_transactions = block_data.get('transactions', [])
+                print(f"DEBUG: Block {block_num} has {len(block_transactions)} transactions")
+                
+                for tx in block_transactions:
+                    if len(transactions) >= limit:
+                        break
+                    
+                    # Build transaction info from real block data
                     tx_info = {
-                        "hash": str(tx.get('hash', f'tx_{i}')),
-                        "block_number": int(tx.get('block_number', 0)),
-                        "from_address": str(tx.get('from_address', '')),
-                        "to_address": str(tx.get('to_address', '')),
-                        "amount": str(tx.get('amount', '0')),
-                        "gas_limit": str(tx.get('gas_limit', '21000')),
-                        "timestamp": int(tx.get('timestamp', 0)),
+                        "hash": tx.get('hash', f"tx_{block_num}_{len(transactions)}"),
+                        "block_number": block_num,
+                        "from_address": tx.get('from_address', 'unknown'),
+                        "to_address": tx.get('to_address', 'unknown'),
+                        "amount": str(tx.get('amount', 0)),
+                        "gas_limit": str(tx.get('gas_limit', 21000)),
+                        "gas_price": str(tx.get('gas_price', 0)),
+                        "timestamp": tx.get('timestamp', int(time.time())),
                         "status": "success"
                     }
-                elif hasattr(tx, 'to_dict'):
-                    # Transaction has a to_dict method
-                    tx_dict = tx.to_dict()
-                    tx_info = {
-                        "hash": str(tx_dict.get('hash', f'tx_{i}')),
-                        "block_number": int(tx_dict.get('block_number', 0)),
-                        "from_address": str(tx_dict.get('from_address', '')),
-                        "to_address": str(tx_dict.get('to_address', '')),
-                        "amount": str(tx_dict.get('amount', '0')),
-                        "gas_limit": str(tx_dict.get('gas_limit', '21000')),
-                        "timestamp": int(tx_dict.get('timestamp', 0)),
-                        "status": "success"
-                    }
-                else:
-                    # Transaction is an object with attributes
-                    tx_info = {
-                        "hash": str(getattr(tx, 'hash', f'tx_{i}')),
-                        "block_number": int(getattr(tx, 'block_number', 0)),
-                        "from_address": str(getattr(tx, 'from_address', '')),
-                        "to_address": str(getattr(tx, 'to_address', '')),
-                        "amount": str(getattr(tx, 'amount', '0')),
-                        "gas_limit": str(getattr(tx, 'gas_limit', '21000')),
-                        "timestamp": int(getattr(tx, 'timestamp', 0)),
-                        "status": "success"
-                    }
+                    transactions.append(tx_info)
+                    print(f"DEBUG: Added transaction from {tx_info['from_address']} to {tx_info['to_address']}")
                 
-                formatted_transactions.append(tx_info)
-                print(f"DEBUG: Transaction {i} processed successfully")
-                
-            except Exception as tx_error:
-                print(f"DEBUG: Error processing transaction {i}: {tx_error}")
+            except Exception as e:
+                print(f"DEBUG: Error processing block {block_num}: {e}")
                 continue
+        
+        print(f"DEBUG: Returning {len(transactions)} transactions")
         
         return {
             "success": True,
             "data": {
-                "transactions": formatted_transactions,
-                "total": len(formatted_transactions)
+                "transactions": transactions,
+                "total": len(transactions)
             }
         }
         
     except Exception as e:
         print(f"ERROR in getRecentTransactions: {e}")
-        import traceback
-        traceback.print_exc()
         return {"success": False, "error": str(e)}
 
 def test_blockchain_methods():
@@ -977,7 +964,7 @@ def initialize_blockchain():
         
         # Create blockchain instance first (auto-starts mining and validators)
         blockchain = DinariBlockchain()
-        test_blockchain_methods()
+        #test_blockchain_methods()
         
         # Create contract manager
         contract_manager = ContractManager(blockchain)
