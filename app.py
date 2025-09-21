@@ -227,6 +227,48 @@ def handle_dinari_getTransaction(params):
     except Exception as e:
         return {"success": False, "error": f"Failed to get transaction: {str(e)}"}
 
+def handle_dinari_getRecentTransactions(params):
+    """Get recent transactions"""
+    try:
+        limit = int(params[0]) if params and len(params) > 0 else 20
+        limit = min(limit, 100)
+        
+        if not blockchain:
+            return {"success": False, "error": "Blockchain not available"}
+        
+        recent_transactions = blockchain.get_recent_transactions(limit)
+        
+        formatted_transactions = []
+        for tx in recent_transactions:
+            try:
+                tx_info = {
+                    "hash": str(tx.get('hash', '')),
+                    "block_number": int(tx.get('block_number', 0)),
+                    "from_address": str(tx.get('from_address', '')),
+                    "to_address": str(tx.get('to_address', '')),
+                    "amount": str(tx.get('amount', '0')),
+                    "gas_price": str(tx.get('gas_price', '0')),
+                    "gas_limit": str(tx.get('gas_limit', '21000')),
+                    "timestamp": int(tx.get('timestamp', tx.get('block_timestamp', 0))),
+                    "status": "success"
+                }
+                formatted_transactions.append(tx_info)
+            except Exception as tx_error:
+                print(f"Error processing transaction: {tx_error}")
+                continue
+        
+        return {
+            "success": True,
+            "data": {
+                "transactions": formatted_transactions,
+                "total": len(formatted_transactions)
+            }
+        }
+        
+    except Exception as e:
+        print(f"Error in getRecentTransactions: {e}")
+        return {"success": False, "error": str(e)}
+
 
 def handle_dinari_getRecentBlocks(params):
     """Get recent blocks - FIXED to match RPC routing format"""
@@ -1415,6 +1457,21 @@ def rpc_handler():
                     "address_format": "DT-prefixed",
                     "is_genesis": False
                 }
+                
+            elif method == "dinari_getRecentTransactions":
+                result = handle_dinari_getRecentTransactions(params)
+                if result["success"]:
+                    return jsonify({
+                        "jsonrpc": "2.0",
+                        "result": result["data"],
+                        "id": data.get("id", 1)
+                    })
+                else:
+                    return jsonify({
+                        "jsonrpc": "2.0",
+                        "error": {"code": -32603, "message": result["error"]},
+                        "id": data.get("id", 1)
+                    })
                 
             elif method == 'dinari_generateAddress':
                 # New method to generate DT address
