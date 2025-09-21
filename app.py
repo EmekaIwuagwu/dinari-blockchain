@@ -178,7 +178,7 @@ def handle_dinari_getBlock(params):
 
 
 def handle_dinari_getTransaction(params):
-    """Get specific transaction by hash"""
+    """Get specific transaction by hash - PERMANENT LOOKUP"""
     try:
         if not params or len(params) < 1:
             return {"success": False, "error": "Transaction hash required"}
@@ -188,123 +188,148 @@ def handle_dinari_getTransaction(params):
         if not blockchain:
             return {"success": False, "error": "Blockchain not available"}
         
-        # Search through recent blocks for the transaction
+        # Try permanent transaction storage first
+        if hasattr(blockchain, 'get_transaction_by_hash'):
+            result = blockchain.get_transaction_by_hash(tx_hash)
+            if result:
+                return {
+                    "success": True,
+                    "data": result['transaction']
+                }
+        
+        # Fallback: Search through all blocks (less efficient)
         chain_height = blockchain.get_chain_height()
         
-        for block_num in range(chain_height, max(0, chain_height - 100), -1):
+        for block_num in range(chain_height - 1, -1, -1):
             try:
                 block_data = blockchain.get_block_by_index(block_num)
                 if not block_data:
                     continue
                 
                 transactions = block_data.get('transactions', [])
-                
-                for tx_index, tx in enumerate(transactions):
+                for tx in transactions:
                     if tx.get('hash') == tx_hash:
-                        # Found the transaction
-                        result = {
-                            "hash": tx.get('hash'),
-                            "block_number": block_num,
-                            "transaction_index": tx_index,
-                            "from_address": tx.get('from_address'),
-                            "to_address": tx.get('to_address'),
-                            "amount": str(tx.get('amount', 0)),
-                            "gas_price": str(tx.get('gas_price', 1000000000)),
-                            "gas_limit": str(tx.get('gas_limit', 21000)),
-                            "nonce": tx.get('nonce', 0),
-                            "data": tx.get('data', ''),
-                            "timestamp": block_data.get('timestamp'),
-                            "status": "success"
+                        return {
+                            "success": True,
+                            "data": tx
                         }
-                        
-                        return {"success": True, "data": result}
                         
             except Exception as e:
                 continue
         
-        return {"success": False, "error": f"Transaction {tx_hash} not found"}
+        return {"success": False, "error": "Transaction not found"}
         
     except Exception as e:
-        return {"success": False, "error": f"Failed to get transaction: {str(e)}"}
+        print(f"ERROR in getTransaction: {e}")
+        return {"success": False, "error": str(e)}
+
 
 def handle_dinari_getRecentTransactions(params):
-    """Get recent transactions from blocks - FULL SCAN VERSION"""
+    """Get ALL transactions with pagination - PERMANENT ACCESS"""
     try:
-        limit = int(params[0]) if params and len(params) > 0 else 20
+        # Parse parameters
+        limit = int(params[0]) if params and len(params) > 0 else 50
+        start_index = int(params[1]) if len(params) > 1 else 0
+        
+        # Ensure reasonable limits to prevent overload
+        limit = min(limit, 100)  # Max 100 transactions per request
         
         if not blockchain:
             return {"success": False, "error": "Blockchain not available"}
         
-        transactions = []
-        
-        # Get chain height
-        chain_height = blockchain.get_chain_height()
-        print(f"DEBUG: Chain height = {chain_height}")
-        
-        if chain_height == 0:
-            return {"success": True, "data": {"transactions": [], "total": 0}}
-        
-        # IMPROVED: Scan more blocks to find all transactions
-        # For small chains, scan everything. For large chains, scan last 50 blocks + genesis
-        blocks_to_scan = []
-        
-        if chain_height <= 50:
-            # Small chain: scan all blocks
-            blocks_to_scan = list(range(chain_height - 1, -1, -1))  # All blocks, newest first
-        else:
-            # Large chain: scan last 50 blocks + genesis block (0)
-            recent_blocks = list(range(chain_height - 1, max(0, chain_height - 50), -1))
-            blocks_to_scan = recent_blocks + [0]  # Recent blocks + genesis
-        
-        print(f"DEBUG: Scanning blocks: {blocks_to_scan[:10]}...")  # Show first 10
-        
-        for block_num in blocks_to_scan:
-            if len(transactions) >= limit:
-                break
-                
-            try:
-                block_data = blockchain.get_block_by_index(block_num)
-                if not block_data:
-                    continue
-                
-                block_transactions = block_data.get('transactions', [])
-                print(f"DEBUG: Block {block_num} has {len(block_transactions)} transactions")
-                
-                for tx in block_transactions:
-                    if len(transactions) >= limit:
-                        break
-                    
-                    tx_info = {
-                        "hash": tx.get('hash', f"tx_{block_num}_{len(transactions)}"),
-                        "block_number": block_num,
-                        "from_address": tx.get('from_address', 'unknown'),
-                        "to_address": tx.get('to_address', 'unknown'),
-                        "amount": str(tx.get('amount', 0)),
-                        "gas_limit": str(tx.get('gas_limit', 21000)),
-                        "gas_price": str(tx.get('gas_price', 0)),
-                        "timestamp": tx.get('timestamp', int(time.time())),
-                        "status": "success"
-                    }
-                    transactions.append(tx_info)
-                
-            except Exception as e:
-                print(f"DEBUG: Error processing block {block_num}: {e}")
-                continue
-        
-        print(f"DEBUG: Returning {len(transactions)} total transactions")
-        
-        return {
-            "success": True,
-            "data": {
-                "transactions": transactions,
-                "total": len(transactions)
+        # Try using the new permanent transaction storage first
+        if hasattr(blockchain, 'get_all_transactions'):
+            print(f"DEBUG: Getting ALL transactions (start: {start_index}, limit: {limit})")
+            result = blockchain.get_all_transactions(start_index, limit, reverse=True)
+            
+            transactions = []
+            for tx in result['transactions']:
+                tx_info = {
+                    "hash": tx.get('hash', 'unknown'),
+                    "block_number": tx.get('block_number', 0),
+                    "from_address": tx.get('from_address', 'unknown'),
+                    "to_address": tx.get('to_address', 'unknown'),
+                    "amount": str(tx.get('amount', 0)),
+                    "gas_limit": str(tx.get('gas_limit', 21000)),
+                    "gas_price": str(tx.get('gas_price', 0)),
+                    "timestamp": tx.get('timestamp', int(time.time())),
+                    "status": "success"
+                }
+                transactions.append(tx_info)
+            
+            print(f"DEBUG: Returning {len(transactions)} of {result['total']} total transactions")
+            
+            return {
+                "success": True,
+                "data": {
+                    "transactions": transactions,
+                    "total": result['total'],
+                    "has_more": result['has_more'],
+                    "start_index": start_index,
+                    "page_size": limit
+                }
             }
-        }
+        
+        # Fallback: Legacy method (scan all blocks - less efficient but comprehensive)
+        else:
+            print("DEBUG: Using legacy method to scan all blocks for transactions")
+            transactions = []
+            
+            chain_height = blockchain.get_chain_height()
+            if chain_height == 0:
+                return {"success": True, "data": {"transactions": [], "total": 0}}
+            
+            # Scan ALL blocks from newest to oldest to find ALL transactions
+            all_transactions = []
+            
+            for block_num in range(chain_height - 1, -1, -1):  # Scan every single block
+                try:
+                    block_data = blockchain.get_block_by_index(block_num)
+                    if not block_data:
+                        continue
+                    
+                    block_transactions = block_data.get('transactions', [])
+                    
+                    for tx in block_transactions:
+                        tx_info = {
+                            "hash": tx.get('hash', f"tx_{block_num}_{len(all_transactions)}"),
+                            "block_number": block_num,
+                            "from_address": tx.get('from_address', 'unknown'),
+                            "to_address": tx.get('to_address', 'unknown'),
+                            "amount": str(tx.get('amount', 0)),
+                            "gas_limit": str(tx.get('gas_limit', 21000)),
+                            "gas_price": str(tx.get('gas_price', 0)),
+                            "timestamp": tx.get('timestamp', block_data.get('timestamp', int(time.time()))),
+                            "status": "success"
+                        }
+                        all_transactions.append(tx_info)
+                
+                except Exception as e:
+                    print(f"DEBUG: Error processing block {block_num}: {e}")
+                    continue
+            
+            # Apply pagination to all found transactions
+            total_transactions = len(all_transactions)
+            paginated_transactions = all_transactions[start_index:start_index + limit]
+            has_more = start_index + len(paginated_transactions) < total_transactions
+            
+            print(f"DEBUG: Found {total_transactions} total transactions, returning {len(paginated_transactions)}")
+            
+            return {
+                "success": True,
+                "data": {
+                    "transactions": paginated_transactions,
+                    "total": total_transactions,
+                    "has_more": has_more,
+                    "start_index": start_index,
+                    "page_size": limit
+                }
+            }
         
     except Exception as e:
         print(f"ERROR in getRecentTransactions: {e}")
         return {"success": False, "error": str(e)}
-
+    
 def test_blockchain_methods():
     """Debug what blockchain methods return"""
     try:
@@ -674,85 +699,68 @@ def handle_dinari_estimateTransactionFee(params):
 
     
 def handle_dinari_getTransactionHistory(params):
-    """Get transaction history for an address with pagination"""
+    """Get transaction history for an address - PERMANENT HISTORY"""
     try:
         if not params or len(params) < 1:
-            return {"success": False, "error": "Address parameter required"}
+            return {"success": False, "error": "Address required"}
         
         address = params[0]
-        limit = int(params[1]) if len(params) > 1 else 10  # Default 10 transactions
-        offset = int(params[2]) if len(params) > 2 else 0   # Default start from 0
+        limit = int(params[1]) if len(params) > 1 else 50
+        start_index = int(params[2]) if len(params) > 2 else 0
         
-        # Validate address format
-        if not address.startswith('DT') or len(address) != 42:
-            return {"success": False, "error": "Invalid DT address format"}
+        if not blockchain:
+            return {"success": False, "error": "Blockchain not available"}
         
-        transactions = []
-        total_count = 0
+        # Try permanent address transaction storage
+        if hasattr(blockchain, 'get_address_transactions'):
+            result = blockchain.get_address_transactions(address, start_index, limit)
+            return {
+                "success": True,
+                "data": {
+                    "transactions": result['transactions'],
+                    "total_count": result['total'],
+                    "has_more": result['has_more']
+                }
+            }
         
-        # Search through all blocks for transactions involving this address
-        for block_index in range(len(blockchain.chain) if hasattr(blockchain, 'chain') else 0):
+        # Fallback: Scan all blocks for address transactions
+        address_transactions = []
+        chain_height = blockchain.get_chain_height()
+        
+        for block_num in range(chain_height - 1, -1, -1):
             try:
-                # Get block data
-                block = blockchain.get_block(block_index)
-                if not block:
+                block_data = blockchain.get_block_by_index(block_num)
+                if not block_data:
                     continue
-                    
-                block_transactions = block.get('transactions', [])
-                block_timestamp = block.get('timestamp')
                 
-                for tx in block_transactions:
-                    # Check if transaction involves this address
-                    if (tx.get('from_address') == address or 
-                        tx.get('to_address') == address):
+                transactions = block_data.get('transactions', [])
+                for tx in transactions:
+                    if tx.get('from_address') == address or tx.get('to_address') == address:
+                        direction = 'sent' if tx.get('from_address') == address else 'received'
+                        tx_copy = tx.copy()
+                        tx_copy['direction'] = direction
+                        tx_copy['block_number'] = block_num
+                        address_transactions.append(tx_copy)
                         
-                        total_count += 1
-                        
-                        # Apply pagination
-                        if total_count > offset and len(transactions) < limit:
-                            transaction_data = {
-                                "hash": tx.get('hash', ''),
-                                "from_address": tx.get('from_address', ''),
-                                "to_address": tx.get('to_address', ''),
-                                "amount": str(tx.get('amount', '0')),
-                                "gas_price": str(tx.get('gas_price', '0')),
-                                "gas_used": str(tx.get('gas_limit', '21000')),
-                                "status": "confirmed",
-                                "block_number": block_index,
-                                "block_timestamp": block_timestamp,
-                                "transaction_type": "DINARI",
-                                "direction": "sent" if tx.get('from_address') == address else "received",
-                                "data": tx.get('data', '')
-                            }
-                            transactions.append(transaction_data)
-                            
             except Exception as e:
-                continue  # Skip problematic blocks
+                continue
         
-        # Also check AFC transactions from smart contract events
-        try:
-            afc_transactions = get_afc_transaction_history(address, limit, offset)
-            transactions.extend(afc_transactions)
-            total_count += len(afc_transactions)
-        except:
-            pass  # AFC history is optional
+        # Apply pagination
+        paginated = address_transactions[start_index:start_index + limit]
+        has_more = len(address_transactions) > start_index + limit
         
-        # Sort by timestamp (newest first)
-        transactions.sort(key=lambda x: x.get('block_timestamp', 0), reverse=True)
-        
-        result = {
-            "address": address,
-            "transactions": transactions[:limit],  # Ensure limit
-            "total_count": total_count,
-            "limit": limit,
-            "offset": offset,
-            "has_more": total_count > (offset + limit)
+        return {
+            "success": True,
+            "data": {
+                "transactions": paginated,
+                "total_count": len(address_transactions),
+                "has_more": has_more
+            }
         }
         
-        return {"success": True, "data": result}
-        
     except Exception as e:
-        return {"success": False, "error": f"Failed to get transaction history: {str(e)}"}
+        print(f"ERROR in getTransactionHistory: {e}")
+        return {"success": False, "error": str(e)}
 
 
 def get_afc_transaction_history(address, limit, offset):
