@@ -229,40 +229,35 @@ def handle_dinari_getTransaction(params):
 
 
 def handle_dinari_getRecentBlocks(params):
-    """Get recent blocks - FIXED to return proper format"""
+    """Get recent blocks - DEBUG VERSION"""
     try:
         limit = int(params[0]) if params and len(params) > 0 else 10
         limit = min(limit, 50)
         
+        print(f"DEBUG: limit = {limit}")
+        
         if not blockchain:
+            print("DEBUG: blockchain is None!")
             return {"blocks": [], "total": 0}
         
-        # Get recent blocks using the corrected blockchain method
+        print(f"DEBUG: blockchain type = {type(blockchain)}")
+        
+        # Test if get_recent_blocks method exists
+        if not hasattr(blockchain, 'get_recent_blocks'):
+            print("DEBUG: get_recent_blocks method missing!")
+            return {"blocks": [], "total": 0}
+        
+        print("DEBUG: Calling blockchain.get_recent_blocks...")
         recent_blocks = blockchain.get_recent_blocks(limit)
+        print(f"DEBUG: Got {len(recent_blocks) if recent_blocks else 0} blocks")
         
-        # Format blocks for frontend
-        formatted_blocks = []
-        for block in recent_blocks:
-            block_info = {
-                "number": block.get('number', block.get('index', 0)),
-                "hash": block.get('hash', ''),
-                "timestamp": block.get('timestamp', 0),
-                "transaction_count": len(block.get('transactions', [])),
-                "gas_used": str(block.get('gas_used', 0)),
-                "validator": block.get('validator', 'system'),
-                "size": len(json.dumps(block))
-            }
-            formatted_blocks.append(block_info)
-        
-        # Return in the format frontend expects
-        return {
-            "blocks": formatted_blocks,  # Frontend looks for result.blocks
-            "total": len(formatted_blocks)
-        }
+        return {"blocks": [], "total": 0, "debug": "Success"}
         
     except Exception as e:
-        print(f"Error in getRecentBlocks: {e}")
-        return {"blocks": [], "total": 0}
+        print(f"DEBUG ERROR: {str(e)}")
+        import traceback
+        traceback.print_exc()
+        return {"blocks": [], "total": 0, "error": str(e)}
 
 
 def handle_dinari_getRecentTransactions(params):
