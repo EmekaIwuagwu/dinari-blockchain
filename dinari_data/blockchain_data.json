@@ -1,0 +1,678 @@
+{
+  "block:4ed223b4fa01e6fdff47c467372257fe30de252f4c17fca277d2226f5d4a2dcc": {
+    "index": 0,
+    "transactions": [
+      {
+        "from_address": "genesis",
+        "to_address": "DT1qyfe883hey6jrgj2xvk9a3klghvz9z9way2nxvu",
+        "amount": "30000000",
+        "gas_price": "0",
+        "gas_limit": 21000,
+        "nonce": 0,
+        "data": "Main treasury DINARI allocation - 30M tokens",
+        "signature": "",
+        "timestamp": 1758436915,
+        "tx_type": "transfer",
+        "contract_address": ""
+      },
+      {
+        "from_address": "genesis",
+        "to_address": "DT1sv9m0g077juqa67h64zxzr26k5xu5rcp8c9qvx",
+        "amount": "25000000",
+        "gas_price": "0",
+        "gas_limit": 21000,
+        "nonce": 1,
+        "data": "Validators fund DINARI allocation - 25M tokens",
+        "signature": "",
+        "timestamp": 1758436915,
+        "tx_type": "transfer",
+        "contract_address": ""
+      },
+      {
+        "from_address": "genesis",
+        "to_address": "DT1cqgze3fqpw0dqh9j8l2dqqyr89c0q5c2jdpg8x",
+        "amount": "20000000",
+        "gas_price": "0",
+        "gas_limit": 21000,
+        "nonce": 2,
+        "data": "Development fund DINARI allocation - 20M tokens",
+        "signature": "",
+        "timestamp": 1758436915,
+        "tx_type": "transfer",
+        "contract_address": ""
+      },
+      {
+        "from_address": "genesis",
+        "to_address": "DT1xz2f8l8lh8vqw3r6n4s2k7j9p1d5g8h3m6c4v7",
+        "amount": "15000000",
+        "gas_price": "0",
+        "gas_limit": 21000,
+        "nonce": 3,
+        "data": "Community treasury DINARI allocation - 15M tokens",
+        "signature": "",
+        "timestamp": 1758436915,
+        "tx_type": "transfer",
+        "contract_address": ""
+      },
+      {
+        "from_address": "genesis",
+        "to_address": "DT1a7b8c9d0e1f2g3h4i5j6k7l8m9n0o1p2q3r4s5",
+        "amount": "10000000",
+        "gas_price": "0",
+        "gas_limit": 21000,
+        "nonce": 4,
+        "data": "Reserve fund DINARI allocation - 10M tokens",
+        "signature": "",
+        "timestamp": 1758436915,
+        "tx_type": "transfer",
+        "contract_address": ""
+      }
+    ],
+    "timestamp": 1758436915,
+    "previous_hash": "0000000000000000000000000000000000000000000000000000000000000000",
+    "nonce": 0,
+    "validator": "genesis",
+    "gas_used": 0,
+    "gas_limit": 10000000,
+    "hash": "4ed223b4fa01e6fdff47c467372257fe30de252f4c17fca277d2226f5d4a2dcc"
+  },
+  "chain_state": {
+    "height": 5,
+    "last_block_hash": "acd80c418840b29fc9f9865713d2f10da7aac38aad502dec6993b5f7445e3043",
+    "total_dinari_supply": "98662628.4183601187729050000",
+    "total_transactions": 5,
+    "contract_count": 1,
+    "total_afc_supply": "200000000"
+  },
+  "dinari_balances": {
+    "DT1qyfe883hey6jrgj2xvk9a3klghvz9z9way2nxvu": "29589911.5520424229050000000",
+    "DT1sv9m0g077juqa67h64zxzr26k5xu5rcp8c9qvx": "24658259.6267020190875000000",
+    "DT1cqgze3fqpw0dqh9j8l2dqqyr89c0q5c2jdpg8x": "19726607.7013616152700000000",
+    "DT1xz2f8l8lh8vqw3r6n4s2k7j9p1d5g8h3m6c4v7": "14794955.7760212114525000000",
+    "DT1a7b8c9d0e1f2g3h4i5j6k7l8m9n0o1p2q3r4s5": "9863303.8506808076350000000",
+    "DTvalidator1a2b3c4d5e6f7g8h9i0j1k2l3m4n5o6p7q8": "9863.3038506808076350000",
+    "DTvalidator2b3c4d5e6f7g8h9i0j1k2l3m4n5o6p7q8r9": "9863.3038506808076350000",
+    "DTvalidator3c4d5e6f7g8h9i0j1k2l3m4n5o6p7q8r9s0": "9863.3038506808076350000"
+  },
+  "contracts": {
+    "afrocoin_stablecoin": {
+      "contract_id": "afrocoin_stablecoin",
+      "code": "Afrocoin USD Stablecoin Contract",
+      "owner": "genesis",
+      "contract_type": "afrocoin_stablecoin",
+      "created_at": 1758437147,
+      "state": {
+        "variables": {
+          "name": "Afrocoin",
+          "symbol": "AFC",
+          "decimals": 18,
+          "total_supply": "0",
+          "balances": {},
+          "allowances": {},
+          "collateral_ratio": "150",
+          "price_oracle": "0.990508862225501803",
+          "stability_fee": "0.5",
+          "liquidation_threshold": "120",
+          "collateral_assets": {
+            "DINARI": {
+              "active": true,
+              "price": "0.10",
+              "ratio": "150",
+              "deposited": "0"
+            },
+            "BTC": {
+              "active": true,
+              "price": "50000.00",
+              "ratio": "200",
+              "deposited": "0"
+            },
+            "ETH": {
+              "active": true,
+              "price": "3000.00",
+              "ratio": "180",
+              "deposited": "0"
+            }
+          },
+          "user_collateral": {},
+          "cdp_counter": 0,
+          "liquidation_penalty": "13",
+          "oracle_addresses": {},
+          "backed_by": "DINARI",
+          "governance_enabled": true,
+          "minting_paused": false,
+          "canonical_oracle": {
+            "price": "1.0",
+            "timestamp": 1758437147,
+            "confidence": "1.0",
+            "decimals": 18,
+            "symbol": "AFC",
+            "base_currency": "USD",
+            "price_source": "afrocoin_protocol_canonical",
+            "algorithm_version": "1.0",
+            "last_update_block": 3
+          },
+          "canonical_price_history": [
+            {
+              "price": "1.0",
+              "timestamp": 1758436915,
+              "confidence": "1.0",
+              "decimals": 18,
+              "symbol": "AFC",
+              "base_currency": "USD",
+              "price_source": "afrocoin_protocol_canonical",
+              "algorithm_version": "1.0",
+              "last_update_block": 1
+            },
+            {
+              "price": "1.0",
+              "timestamp": 1758436915,
+              "confidence": "1.0",
+              "decimals": 18,
+              "symbol": "AFC",
+              "base_currency": "USD",
+              "price_source": "afrocoin_protocol_canonical",
+              "algorithm_version": "1.0",
+              "last_update_block": 1
+            },
+            {
+              "price": "1.0",
+              "timestamp": 1758436915,
+              "confidence": "1.0",
+              "decimals": 18,
+              "symbol": "AFC",
+              "base_currency": "USD",
+              "price_source": "afrocoin_protocol_canonical",
+              "algorithm_version": "1.0",
+              "last_update_block": 1
+            },
+            {
+              "price": "1.0",
+              "timestamp": 1758436915,
+              "confidence": "1.0",
+              "decimals": 18,
+              "symbol": "AFC",
+              "base_currency": "USD",
+              "price_source": "afrocoin_protocol_canonical",
+              "algorithm_version": "1.0",
+              "last_update_block": 1
+            },
+            {
+              "price": "1.0",
+              "timestamp": 1758437147,
+              "confidence": "1.0",
+              "decimals": 18,
+              "symbol": "AFC",
+              "base_currency": "USD",
+              "price_source": "afrocoin_protocol_canonical",
+              "algorithm_version": "1.0",
+              "last_update_block": 3
+            },
+            {
+              "price": "1.0",
+              "timestamp": 1758437147,
+              "confidence": "1.0",
+              "decimals": 18,
+              "symbol": "AFC",
+              "base_currency": "USD",
+              "price_source": "afrocoin_protocol_canonical",
+              "algorithm_version": "1.0",
+              "last_update_block": 3
+            },
+            {
+              "price": "1.0",
+              "timestamp": 1758437147,
+              "confidence": "1.0",
+              "decimals": 18,
+              "symbol": "AFC",
+              "base_currency": "USD",
+              "price_source": "afrocoin_protocol_canonical",
+              "algorithm_version": "1.0",
+              "last_update_block": 3
+            },
+            {
+              "price": "1.0",
+              "timestamp": 1758437147,
+              "confidence": "1.0",
+              "decimals": 18,
+              "symbol": "AFC",
+              "base_currency": "USD",
+              "price_source": "afrocoin_protocol_canonical",
+              "algorithm_version": "1.0",
+              "last_update_block": 3
+            }
+          ],
+          "canonical_dinari_oracle": {
+            "price": "1.0",
+            "timestamp": 1758437147,
+            "confidence": "1.0",
+            "decimals": 18,
+            "symbol": "DINARI",
+            "base_currency": "USD",
+            "price_source": "dinari_protocol_canonical",
+            "algorithm_version": "1.0",
+            "last_update_block": 3,
+            "token_type": "native_token"
+          },
+          "canonical_dinari_price_history": [
+            {
+              "price": "1.0",
+              "timestamp": 1758436915,
+              "confidence": "1.0",
+              "decimals": 18,
+              "symbol": "DINARI",
+              "base_currency": "USD",
+              "price_source": "dinari_protocol_canonical",
+              "algorithm_version": "1.0",
+              "last_update_block": 1,
+              "token_type": "native_token"
+            },
+            {
+              "price": "1.0",
+              "timestamp": 1758436915,
+              "confidence": "1.0",
+              "decimals": 18,
+              "symbol": "DINARI",
+              "base_currency": "USD",
+              "price_source": "dinari_protocol_canonical",
+              "algorithm_version": "1.0",
+              "last_update_block": 1,
+              "token_type": "native_token"
+            },
+            {
+              "price": "1.0",
+              "timestamp": 1758437147,
+              "confidence": "1.0",
+              "decimals": 18,
+              "symbol": "DINARI",
+              "base_currency": "USD",
+              "price_source": "dinari_protocol_canonical",
+              "algorithm_version": "1.0",
+              "last_update_block": 3,
+              "token_type": "native_token"
+            },
+            {
+              "price": "1.0",
+              "timestamp": 1758437147,
+              "confidence": "1.0",
+              "decimals": 18,
+              "symbol": "DINARI",
+              "base_currency": "USD",
+              "price_source": "dinari_protocol_canonical",
+              "algorithm_version": "1.0",
+              "last_update_block": 3,
+              "token_type": "native_token"
+            }
+          ],
+          "last_auto_price_update": 1758437147,
+          "price_history": [
+            {
+              "price": "1.010242951767486033",
+              "timestamp": 1758436915,
+              "source": "external_apis",
+              "confidence": "0.85",
+              "auto_updated": true
+            },
+            {
+              "price": "0.990508862225501803",
+              "timestamp": 1758437147,
+              "source": "external_apis",
+              "confidence": "0.85",
+              "auto_updated": true
+            }
+          ],
+          "dinari_current_price": "0.9959829509598907985",
+          "last_dinari_auto_update": 1758437147,
+          "dinari_price_history": [
+            {
+              "price": "0.972660770136161527",
+              "timestamp": 1758436915,
+              "source": "external_apis",
+              "confidence": "0.85",
+              "auto_updated": true
+            },
+            {
+              "price": "0.9959829509598907985",
+              "timestamp": 1758437147,
+              "source": "external_apis",
+              "confidence": "0.85",
+              "auto_updated": true
+            }
+          ],
+          "last_dinari_rebase_time": 1758436917,
+          "dinari_rebase_history": [
+            {
+              "timestamp": 1758436917,
+              "action": "CONTRACT",
+              "old_supply": "100030000",
+              "new_supply": "98662628.4183601187729050000",
+              "supply_change_percent": "-1.3669614931919236500",
+              "price_before": "0.972660770136161527",
+              "target_price": "1.0",
+              "triggered_by": "blockchain_system"
+            }
+          ]
+        },
+        "balance": "0",
+        "owner": "genesis",
+        "created_at": 1758436915,
+        "last_executed": 1758437147,
+        "is_active": true
+      },
+      "execution_history": [
+        {
+          "timestamp": 1758436915,
+          "function": "set_canonical_afc_price",
+          "caller": "protocol_algorithm",
+          "args": {},
+          "result": {
+            "success": true,
+            "canonical_price": "1.0",
+            "timestamp": 1758436915,
+            "confidence": "1.0",
+            "price_authority": "afrocoin_protocol",
+            "external_integrations_ready": true
+          },
+          "gas_used": 21020,
+          "success": true
+        },
+        {
+          "timestamp": 1758436915,
+          "function": "set_canonical_afc_price",
+          "caller": "protocol_algorithm",
+          "args": {},
+          "result": {
+            "success": true,
+            "canonical_price": "1.0",
+            "timestamp": 1758436915,
+            "confidence": "1.0",
+            "price_authority": "afrocoin_protocol",
+            "external_integrations_ready": true
+          },
+          "gas_used": 21020,
+          "success": true
+        },
+        {
+          "timestamp": 1758436915,
+          "function": "set_canonical_dinari_price",
+          "caller": "protocol_algorithm",
+          "args": {},
+          "result": {
+            "success": true,
+            "canonical_dinari_price": "1.0",
+            "timestamp": 1758436915,
+            "confidence": "1.0",
+            "price_authority": "dinari_protocol",
+            "external_integrations_ready": true,
+            "token": "DINARI"
+          },
+          "gas_used": 21020,
+          "success": true
+        },
+        {
+          "timestamp": 1758436915,
+          "function": "set_canonical_afc_price",
+          "caller": "protocol_algorithm",
+          "args": {},
+          "result": {
+            "success": true,
+            "canonical_price": "1.0",
+            "timestamp": 1758436915,
+            "confidence": "1.0",
+            "price_authority": "afrocoin_protocol",
+            "external_integrations_ready": true
+          },
+          "gas_used": 21020,
+          "success": true
+        },
+        {
+          "timestamp": 1758436915,
+          "function": "set_canonical_afc_price",
+          "caller": "protocol_algorithm",
+          "args": {},
+          "result": {
+            "success": true,
+            "canonical_price": "1.0",
+            "timestamp": 1758436915,
+            "confidence": "1.0",
+            "price_authority": "afrocoin_protocol",
+            "external_integrations_ready": true
+          },
+          "gas_used": 21020,
+          "success": true
+        },
+        {
+          "timestamp": 1758436915,
+          "function": "set_canonical_dinari_price",
+          "caller": "protocol_algorithm",
+          "args": {},
+          "result": {
+            "success": true,
+            "canonical_dinari_price": "1.0",
+            "timestamp": 1758436915,
+            "confidence": "1.0",
+            "price_authority": "dinari_protocol",
+            "external_integrations_ready": true,
+            "token": "DINARI"
+          },
+          "gas_used": 21020,
+          "success": true
+        },
+        {
+          "timestamp": 1758436915,
+          "function": "auto_update_price",
+          "caller": "blockchain_system",
+          "args": {},
+          "result": {
+            "success": true,
+            "old_price": "1.00",
+            "new_price": "1.010242951767486033",
+            "source": "external_apis",
+            "deviation_percent": "1.024295176748603300",
+            "auto_stabilized": false,
+            "next_update_in": 60
+          },
+          "gas_used": 21020,
+          "success": true
+        },
+        {
+          "timestamp": 1758436915,
+          "function": "dinari_auto_update_price",
+          "caller": "blockchain_system",
+          "args": {},
+          "result": {
+            "success": true,
+            "old_price": "1.0",
+            "new_price": "0.972660770136161527",
+            "source": "external_apis",
+            "deviation_percent": "2.733922986383847300",
+            "auto_stabilized": true,
+            "next_update_in": 60
+          },
+          "gas_used": 21020,
+          "success": true
+        },
+        {
+          "timestamp": 1758437147,
+          "function": "set_canonical_afc_price",
+          "caller": "protocol_algorithm",
+          "args": {},
+          "result": {
+            "success": true,
+            "canonical_price": "1.0",
+            "timestamp": 1758437147,
+            "confidence": "1.0",
+            "price_authority": "afrocoin_protocol",
+            "external_integrations_ready": true
+          },
+          "gas_used": 21020,
+          "success": true
+        },
+        {
+          "timestamp": 1758437147,
+          "function": "set_canonical_afc_price",
+          "caller": "protocol_algorithm",
+          "args": {},
+          "result": {
+            "success": true,
+            "canonical_price": "1.0",
+            "timestamp": 1758437147,
+            "confidence": "1.0",
+            "price_authority": "afrocoin_protocol",
+            "external_integrations_ready": true
+          },
+          "gas_used": 21020,
+          "success": true
+        },
+        {
+          "timestamp": 1758437147,
+          "function": "set_canonical_dinari_price",
+          "caller": "protocol_algorithm",
+          "args": {},
+          "result": {
+            "success": true,
+            "canonical_dinari_price": "1.0",
+            "timestamp": 1758437147,
+            "confidence": "1.0",
+            "price_authority": "dinari_protocol",
+            "external_integrations_ready": true,
+            "token": "DINARI"
+          },
+          "gas_used": 21020,
+          "success": true
+        },
+        {
+          "timestamp": 1758437147,
+          "function": "set_canonical_afc_price",
+          "caller": "protocol_algorithm",
+          "args": {},
+          "result": {
+            "success": true,
+            "canonical_price": "1.0",
+            "timestamp": 1758437147,
+            "confidence": "1.0",
+            "price_authority": "afrocoin_protocol",
+            "external_integrations_ready": true
+          },
+          "gas_used": 21020,
+          "success": true
+        },
+        {
+          "timestamp": 1758437147,
+          "function": "set_canonical_afc_price",
+          "caller": "protocol_algorithm",
+          "args": {},
+          "result": {
+            "success": true,
+            "canonical_price": "1.0",
+            "timestamp": 1758437147,
+            "confidence": "1.0",
+            "price_authority": "afrocoin_protocol",
+            "external_integrations_ready": true
+          },
+          "gas_used": 21020,
+          "success": true
+        },
+        {
+          "timestamp": 1758437147,
+          "function": "set_canonical_dinari_price",
+          "caller": "protocol_algorithm",
+          "args": {},
+          "result": {
+            "success": true,
+            "canonical_dinari_price": "1.0",
+            "timestamp": 1758437147,
+            "confidence": "1.0",
+            "price_authority": "dinari_protocol",
+            "external_integrations_ready": true,
+            "token": "DINARI"
+          },
+          "gas_used": 21020,
+          "success": true
+        },
+        {
+          "timestamp": 1758437147,
+          "function": "auto_update_price",
+          "caller": "blockchain_system",
+          "args": {},
+          "result": {
+            "success": true,
+            "old_price": "1.010242951767486033",
+            "new_price": "0.990508862225501803",
+            "source": "external_apis",
+            "deviation_percent": "0.949113777449819700",
+            "auto_stabilized": false,
+            "next_update_in": 60
+          },
+          "gas_used": 21020,
+          "success": true
+        },
+        {
+          "timestamp": 1758437147,
+          "function": "dinari_auto_update_price",
+          "caller": "blockchain_system",
+          "args": {},
+          "result": {
+            "success": true,
+            "old_price": "0.972660770136161527",
+            "new_price": "0.9959829509598907985",
+            "source": "external_apis",
+            "deviation_percent": "0.4017049040109201500",
+            "auto_stabilized": false,
+            "next_update_in": 60
+          },
+          "gas_used": 21020,
+          "success": true
+        }
+      ]
+    }
+  },
+  "validators": [
+    "DTvalidator1a2b3c4d5e6f7g8h9i0j1k2l3m4n5o6p7q8",
+    "DTvalidator2b3c4d5e6f7g8h9i0j1k2l3m4n5o6p7q8r9",
+    "DTvalidator3c4d5e6f7g8h9i0j1k2l3m4n5o6p7q8r9s0"
+  ],
+  "block:ae59a7b86c5b44b83f8940303b10e3fc9018f2c46d71e72850aa49ceca2de40e": {
+    "index": 1,
+    "transactions": [],
+    "timestamp": 1758436930,
+    "previous_hash": "4ed223b4fa01e6fdff47c467372257fe30de252f4c17fca277d2226f5d4a2dcc",
+    "nonce": 0,
+    "validator": "DTvalidator2b3c4d5e6f7g8h9i0j1k2l3m4n5o6p7q8r9",
+    "gas_used": 0,
+    "gas_limit": 10000000,
+    "hash": "ae59a7b86c5b44b83f8940303b10e3fc9018f2c46d71e72850aa49ceca2de40e"
+  },
+  "block:7de73c3f5ebaf53e25efc8e5349b3093f5ad88cc6eb104a0499188de334cef78": {
+    "index": 2,
+    "transactions": [],
+    "timestamp": 1758436945,
+    "previous_hash": "ae59a7b86c5b44b83f8940303b10e3fc9018f2c46d71e72850aa49ceca2de40e",
+    "nonce": 0,
+    "validator": "DTvalidator3c4d5e6f7g8h9i0j1k2l3m4n5o6p7q8r9s0",
+    "gas_used": 0,
+    "gas_limit": 10000000,
+    "hash": "7de73c3f5ebaf53e25efc8e5349b3093f5ad88cc6eb104a0499188de334cef78"
+  },
+  "block:5ef0f7d8145fbb8fbff982812c5d255ed0453c5b4ed25d35f50012c602060a1f": {
+    "index": 3,
+    "transactions": [],
+    "timestamp": 1758437162,
+    "previous_hash": "7de73c3f5ebaf53e25efc8e5349b3093f5ad88cc6eb104a0499188de334cef78",
+    "nonce": 0,
+    "validator": "DTvalidator1a2b3c4d5e6f7g8h9i0j1k2l3m4n5o6p7q8",
+    "gas_used": 0,
+    "gas_limit": 10000000,
+    "hash": "5ef0f7d8145fbb8fbff982812c5d255ed0453c5b4ed25d35f50012c602060a1f"
+  },
+  "block:acd80c418840b29fc9f9865713d2f10da7aac38aad502dec6993b5f7445e3043": {
+    "index": 4,
+    "transactions": [],
+    "timestamp": 1758437177,
+    "previous_hash": "5ef0f7d8145fbb8fbff982812c5d255ed0453c5b4ed25d35f50012c602060a1f",
+    "nonce": 0,
+    "validator": "DTvalidator2b3c4d5e6f7g8h9i0j1k2l3m4n5o6p7q8r9",
+    "gas_used": 0,
+    "gas_limit": 10000000,
+    "hash": "acd80c418840b29fc9f9865713d2f10da7aac38aad502dec6993b5f7445e3043"
+  }
+}

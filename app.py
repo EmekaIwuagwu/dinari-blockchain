@@ -119,6 +119,316 @@ def handle_dinari_getDualTokenStatus(params):
     except Exception as e:
         return {"success": False, "error": f"Failed to get dual token status: {str(e)}"}
 
+def handle_dinari_estimateGas(params):
+    """Estimate gas cost for a transaction"""
+    try:
+        if not params or len(params) < 1:
+            return {"success": False, "error": "Transaction parameters required"}
+        
+        tx_params = params[0]
+        
+        # Extract transaction parameters
+        from_address = tx_params.get('from_address', '')
+        to_address = tx_params.get('to_address', '')
+        amount = tx_params.get('amount', '0')
+        data = tx_params.get('data', '')
+        
+        # Validate addresses
+        if not from_address.startswith('DT') or len(from_address) != 42:
+            return {"success": False, "error": "Invalid from_address format"}
+        
+        if not to_address.startswith('DT') or len(to_address) != 42:
+            return {"success": False, "error": "Invalid to_address format"}
+        
+        # Basic gas calculation
+        base_gas = 21000  # Standard transfer gas
+        
+        # Add gas for data (if any)
+        data_gas = len(data.encode('utf-8')) * 68 if data else 0
+        
+        # Smart contract interaction gas
+        contract_gas = 0
+        if data and data.startswith('contract:'):
+            contract_gas = 50000  # Additional gas for contract calls
+        
+        # AFC transfer gas (if transferring AFC)
+        afc_gas = 0
+        if tx_params.get('token_type') == 'AFC':
+            afc_gas = 30000  # AFC transfers use more gas
+        
+        # Total gas estimate
+        estimated_gas = base_gas + data_gas + contract_gas + afc_gas
+        
+        # Gas price tiers
+        gas_prices = {
+            "slow": "1000000000",      # 1 Gwei - ~30 seconds
+            "standard": "2000000000",  # 2 Gwei - ~15 seconds  
+            "fast": "5000000000"       # 5 Gwei - ~5 seconds
+        }
+        
+        # Calculate fees for each tier
+        fee_estimates = {}
+        for tier, gas_price in gas_prices.items():
+            total_fee = int(estimated_gas) * int(gas_price)
+            fee_estimates[tier] = {
+                "gas_price": gas_price,
+                "gas_limit": str(estimated_gas),
+                "total_fee": str(total_fee),
+                "total_fee_dinari": str(total_fee / 1e18),  # Convert to DINARI
+                "estimated_time": "15 seconds" if tier == "standard" else ("30 seconds" if tier == "slow" else "5 seconds")
+            }
+        
+        # Check if sender has enough DINARI for fees
+        try:
+            balance_result = blockchain.get_balance(from_address)
+            dinari_balance = balance_result.get('DINARI', 0) if balance_result else 0
+            
+            max_fee = int(fee_estimates["fast"]["total_fee"])
+            can_afford = int(float(dinari_balance) * 1e18) >= max_fee
+        except:
+            can_afford = True  # Assume true if balance check fails
+        
+        result = {
+            "transaction": {
+                "from_address": from_address,
+                "to_address": to_address,
+                "amount": amount,
+                "data": data
+            },
+            "gas_estimates": fee_estimates,
+            "recommended": "standard",
+            "can_afford_fees": can_afford,
+            "estimated_gas": str(estimated_gas),
+            "current_gas_price": gas_prices["standard"],
+            "currency": "DINARI"
+        }
+        
+        return {"success": True, "data": result}
+        
+    except Exception as e:
+        return {"success": False, "error": f"Failed to estimate gas: {str(e)}"}
+
+
+def handle_dinari_getCurrentGasPrices(params):
+    """Get current network gas prices"""
+    try:
+        # Dynamic gas pricing based on network congestion
+        # For now, use static prices - can be made dynamic later
+        
+        gas_prices = {
+            "slow": {
+                "price": "1000000000",      # 1 Gwei
+                "time": "30 seconds",
+                "probability": "95%"
+            },
+            "standard": {
+                "price": "2000000000",      # 2 Gwei
+                "time": "15 seconds", 
+                "probability": "98%"
+            },
+            "fast": {
+                "price": "5000000000",      # 5 Gwei
+                "time": "5 seconds",
+                "probability": "99%"
+            }
+        }
+        
+        # Network statistics
+        network_stats = {
+            "pending_transactions": len(blockchain.transaction_pool) if hasattr(blockchain, 'transaction_pool') else 0,
+            "last_block_gas_used": "80%",  # Simulated
+            "network_congestion": "low",    # low/medium/high
+            "recommended_tier": "standard"
+        }
+        
+        result = {
+            "gas_prices": gas_prices,
+            "network": network_stats,
+            "timestamp": int(time.time()),
+            "base_fee": "1000000000",  # Base network fee
+            "currency": "DINARI"
+        }
+        
+        return {"success": True, "data": result}
+        
+    except Exception as e:
+        return {"success": False, "error": f"Failed to get gas prices: {str(e)}"}
+
+
+def handle_dinari_estimateTransactionFee(params):
+    """Simple fee estimation for standard transfers"""
+    try:
+        if not params or len(params) < 2:
+            return {"success": False, "error": "from_address and amount parameters required"}
+        
+        from_address = params[0]
+        amount = params[1]
+        token_type = params[2] if len(params) > 2 else "DINARI"
+        
+        # Standard transaction gas
+        gas_limit = 21000 if token_type == "DINARI" else 51000  # AFC uses more gas
+        gas_price = 2000000000  # 2 Gwei standard
+        
+        total_fee = gas_limit * gas_price
+        
+        result = {
+            "amount": amount,
+            "token_type": token_type,
+            "gas_limit": str(gas_limit),
+            "gas_price": str(gas_price),
+            "total_fee": str(total_fee),
+            "total_fee_dinari": str(total_fee / 1e18),
+            "fee_percentage": str((total_fee / (float(amount) * 1e18)) * 100) if float(amount) > 0 else "0"
+        }
+        
+        return {"success": True, "data": result}
+        
+    except Exception as e:
+        return {"success": False, "error": f"Failed to estimate transaction fee: {str(e)}"}
+
+
+    
+def handle_dinari_getTransactionHistory(params):
+    """Get transaction history for an address with pagination"""
+    try:
+        if not params or len(params) < 1:
+            return {"success": False, "error": "Address parameter required"}
+        
+        address = params[0]
+        limit = int(params[1]) if len(params) > 1 else 10  # Default 10 transactions
+        offset = int(params[2]) if len(params) > 2 else 0   # Default start from 0
+        
+        # Validate address format
+        if not address.startswith('DT') or len(address) != 42:
+            return {"success": False, "error": "Invalid DT address format"}
+        
+        transactions = []
+        total_count = 0
+        
+        # Search through all blocks for transactions involving this address
+        for block_index in range(len(blockchain.chain) if hasattr(blockchain, 'chain') else 0):
+            try:
+                # Get block data
+                block = blockchain.get_block(block_index)
+                if not block:
+                    continue
+                    
+                block_transactions = block.get('transactions', [])
+                block_timestamp = block.get('timestamp')
+                
+                for tx in block_transactions:
+                    # Check if transaction involves this address
+                    if (tx.get('from_address') == address or 
+                        tx.get('to_address') == address):
+                        
+                        total_count += 1
+                        
+                        # Apply pagination
+                        if total_count > offset and len(transactions) < limit:
+                            transaction_data = {
+                                "hash": tx.get('hash', ''),
+                                "from_address": tx.get('from_address', ''),
+                                "to_address": tx.get('to_address', ''),
+                                "amount": str(tx.get('amount', '0')),
+                                "gas_price": str(tx.get('gas_price', '0')),
+                                "gas_used": str(tx.get('gas_limit', '21000')),
+                                "status": "confirmed",
+                                "block_number": block_index,
+                                "block_timestamp": block_timestamp,
+                                "transaction_type": "DINARI",
+                                "direction": "sent" if tx.get('from_address') == address else "received",
+                                "data": tx.get('data', '')
+                            }
+                            transactions.append(transaction_data)
+                            
+            except Exception as e:
+                continue  # Skip problematic blocks
+        
+        # Also check AFC transactions from smart contract events
+        try:
+            afc_transactions = get_afc_transaction_history(address, limit, offset)
+            transactions.extend(afc_transactions)
+            total_count += len(afc_transactions)
+        except:
+            pass  # AFC history is optional
+        
+        # Sort by timestamp (newest first)
+        transactions.sort(key=lambda x: x.get('block_timestamp', 0), reverse=True)
+        
+        result = {
+            "address": address,
+            "transactions": transactions[:limit],  # Ensure limit
+            "total_count": total_count,
+            "limit": limit,
+            "offset": offset,
+            "has_more": total_count > (offset + limit)
+        }
+        
+        return {"success": True, "data": result}
+        
+    except Exception as e:
+        return {"success": False, "error": f"Failed to get transaction history: {str(e)}"}
+
+
+def get_afc_transaction_history(address, limit, offset):
+    """Get AFC transaction history from smart contract events"""
+    try:
+        afc_transactions = []
+        
+        # This would integrate with your AFC smart contract event logs
+        # For now, return empty array - implement when AFC event system is ready
+        
+        return afc_transactions
+        
+    except Exception as e:
+        return []
+
+def handle_dinari_getTransactionDetails(params):
+    """Get detailed information about a specific transaction"""
+    try:
+        if not params or len(params) < 1:
+            return {"success": False, "error": "Transaction hash parameter required"}
+        
+        tx_hash = params[0]
+        
+        # Search for transaction by hash
+        for block_index in range(len(blockchain.chain) if hasattr(blockchain, 'chain') else 0):
+            try:
+                block = blockchain.get_block(block_index)
+                if not block:
+                    continue
+                    
+                for tx in block.get('transactions', []):
+                    if tx.get('hash') == tx_hash:
+                        # Found the transaction
+                        transaction_details = {
+                            "hash": tx.get('hash'),
+                            "from_address": tx.get('from_address'),
+                            "to_address": tx.get('to_address'),
+                            "amount": str(tx.get('amount', '0')),
+                            "gas_price": str(tx.get('gas_price', '0')),
+                            "gas_limit": str(tx.get('gas_limit', '21000')),
+                            "gas_used": str(tx.get('gas_limit', '21000')),  # Assume all gas used
+                            "status": "confirmed",
+                            "block_number": block_index,
+                            "block_hash": block.get('hash', ''),
+                            "block_timestamp": block.get('timestamp'),
+                            "transaction_index": 0,  # Position in block
+                            "nonce": tx.get('nonce', 0),
+                            "data": tx.get('data', ''),
+                            "confirmations": len(blockchain.chain) - block_index if hasattr(blockchain, 'chain') else 1
+                        }
+                        
+                        return {"success": True, "data": transaction_details}
+                        
+            except Exception as e:
+                continue
+        
+        return {"success": False, "error": "Transaction not found"}
+        
+    except Exception as e:
+        return {"success": False, "error": f"Failed to get transaction details: {str(e)}"}
+
 class DinariAddress:
     """
     DinariBlockchain Address System with Genesis Compatibility
@@ -1026,19 +1336,96 @@ def rpc_handler():
                     result = []
             
             elif method == "dinari_getDualTokenStatus":
-                    result = handle_dinari_getDualTokenStatus(params)
-                    if result["success"]:
-                        return jsonify({
-                            "jsonrpc": "2.0",
-                            "result": result["data"],
-                            "id": data.get("id", 1)
-                        })
-                    else:
-                        return jsonify({
-                            "jsonrpc": "2.0", 
-                            "error": {"code": -32603, "message": result["error"]},
-                            "id": data.get("id", 1)
-                        })
+                result = handle_dinari_getDualTokenStatus(params)
+                if result["success"]:
+                    return jsonify({
+                        "jsonrpc": "2.0",
+                        "result": result["data"],
+                        "id": data.get("id", 1)
+                    })
+                else:
+                    return jsonify({
+                        "jsonrpc": "2.0", 
+                        "error": {"code": -32603, "message": result["error"]},
+                        "id": data.get("id", 1)
+                    })
+            
+            # ========== NEW PRIORITY 1 RPC METHODS ==========
+            elif method == "dinari_getTransactionHistory":
+                result = handle_dinari_getTransactionHistory(params)
+                if result["success"]:
+                    return jsonify({
+                        "jsonrpc": "2.0",
+                        "result": result["data"],
+                        "id": data.get("id", 1)
+                    })
+                else:
+                    return jsonify({
+                        "jsonrpc": "2.0",
+                        "error": {"code": -32603, "message": result["error"]},
+                        "id": data.get("id", 1)
+                    })
+
+            elif method == "dinari_getTransactionDetails":
+                result = handle_dinari_getTransactionDetails(params)
+                if result["success"]:
+                    return jsonify({
+                        "jsonrpc": "2.0",
+                        "result": result["data"],
+                        "id": data.get("id", 1)
+                    })
+                else:
+                    return jsonify({
+                        "jsonrpc": "2.0",
+                        "error": {"code": -32603, "message": result["error"]},
+                        "id": data.get("id", 1)
+                    })
+
+            elif method == "dinari_estimateGas":
+                result = handle_dinari_estimateGas(params)
+                if result["success"]:
+                    return jsonify({
+                        "jsonrpc": "2.0",
+                        "result": result["data"],
+                        "id": data.get("id", 1)
+                    })
+                else:
+                    return jsonify({
+                        "jsonrpc": "2.0",
+                        "error": {"code": -32603, "message": result["error"]},
+                        "id": data.get("id", 1)
+                    })
+
+            elif method == "dinari_getCurrentGasPrices":
+                result = handle_dinari_getCurrentGasPrices(params)
+                if result["success"]:
+                    return jsonify({
+                        "jsonrpc": "2.0",
+                        "result": result["data"],
+                        "id": data.get("id", 1)
+                    })
+                else:
+                    return jsonify({
+                        "jsonrpc": "2.0",
+                        "error": {"code": -32603, "message": result["error"]},
+                        "id": data.get("id", 1)
+                    })
+
+            elif method == "dinari_estimateTransactionFee":
+                result = handle_dinari_estimateTransactionFee(params)
+                if result["success"]:
+                    return jsonify({
+                        "jsonrpc": "2.0",
+                        "result": result["data"],
+                        "id": data.get("id", 1)
+                    })
+                else:
+                    return jsonify({
+                        "jsonrpc": "2.0",
+                        "error": {"code": -32603, "message": result["error"]},
+                        "id": data.get("id", 1)
+                    })
+            # ========== END NEW METHODS ==========
                     
             elif method == 'dinari_mineBlock':
                 validator = params[0] if params else "default_validator"
@@ -1735,8 +2122,8 @@ if __name__ == '__main__':
         logger.info(f"🚀 Starting DinariBlockchain API server on port {PORT}")
         logger.info(f"📍 Using DT-prefixed address format with genesis compatibility")
         logger.info(f"🔑 Supporting {len(DinariAddress.GENESIS_ADDRESSES)} known genesis addresses")
-        
-        app.run(host='0.0.0.0', port=PORT, debug=False)
+
+        app.run(host='0.0.0.0', port=PORT, debug=False, use_reloader=False)
         
     except Exception as e:
         logger.error(f"❌ Failed to start API server: {e}")
