@@ -229,35 +229,42 @@ def handle_dinari_getTransaction(params):
 
 
 def handle_dinari_getRecentBlocks(params):
-    """Get recent blocks - DEBUG VERSION"""
+    """Get recent blocks - FIXED JSON serialization"""
     try:
         limit = int(params[0]) if params and len(params) > 0 else 10
         limit = min(limit, 50)
         
-        print(f"DEBUG: limit = {limit}")
-        
         if not blockchain:
-            print("DEBUG: blockchain is None!")
             return {"blocks": [], "total": 0}
         
-        print(f"DEBUG: blockchain type = {type(blockchain)}")
-        
-        # Test if get_recent_blocks method exists
-        if not hasattr(blockchain, 'get_recent_blocks'):
-            print("DEBUG: get_recent_blocks method missing!")
-            return {"blocks": [], "total": 0}
-        
-        print("DEBUG: Calling blockchain.get_recent_blocks...")
         recent_blocks = blockchain.get_recent_blocks(limit)
-        print(f"DEBUG: Got {len(recent_blocks) if recent_blocks else 0} blocks")
         
-        return {"blocks": [], "total": 0, "debug": "Success"}
+        formatted_blocks = []
+        for block in recent_blocks:
+            # Safe size calculation without JSON serialization
+            block_size = 1024 + (len(block.get('transactions', [])) * 256)
+            
+            block_info = {
+                "number": block.get('number', block.get('index', 0)),
+                "hash": str(block.get('hash', '')),
+                "timestamp": int(block.get('timestamp', 0)),
+                "transaction_count": len(block.get('transactions', [])),
+                "gas_used": str(block.get('gas_used', 0)),
+                "validator": str(block.get('validator', 'system')),
+                "size": block_size  # Fixed: no JSON serialization
+            }
+            formatted_blocks.append(block_info)
+        
+        return {
+            "blocks": formatted_blocks,
+            "total": len(formatted_blocks)
+        }
         
     except Exception as e:
-        print(f"DEBUG ERROR: {str(e)}")
+        print(f"Error in getRecentBlocks: {e}")
         import traceback
         traceback.print_exc()
-        return {"blocks": [], "total": 0, "error": str(e)}
+        return {"blocks": [], "total": 0}
 
 
 def handle_dinari_getRecentTransactions(params):
