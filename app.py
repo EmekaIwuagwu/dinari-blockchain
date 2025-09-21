@@ -310,6 +310,38 @@ def handle_dinari_getRecentTransactions(params):
         traceback.print_exc()
         return {"success": False, "error": str(e)}
 
+def test_blockchain_methods():
+    """Debug what blockchain methods return"""
+    try:
+        print("=== BLOCKCHAIN DEBUG ===")
+        
+        # Test chain height (this works for blocks)
+        chain_height = blockchain.get_chain_height()
+        print(f"Chain height: {chain_height}")
+        
+        # Test what get_recent_transactions returns
+        recent_txs = blockchain.get_recent_transactions(5)
+        print(f"get_recent_transactions() returned: {len(recent_txs) if recent_txs else 0} transactions")
+        
+        if recent_txs:
+            print(f"First transaction: {recent_txs[0]}")
+            print(f"Is this genesis data? {recent_txs[0].get('from_address') == 'genesis'}")
+        
+        # Test getting a real block and its transactions
+        if chain_height > 0:
+            block_data = blockchain.get_block_by_index(chain_height - 1)  # Latest block
+            if block_data:
+                block_txs = block_data.get('transactions', [])
+                print(f"Latest block ({chain_height-1}) has {len(block_txs)} transactions")
+                if block_txs:
+                    print(f"Block transaction example: {block_txs[0]}")
+                    
+    except Exception as e:
+        print(f"Debug error: {e}")
+
+# Call this function to debug
+test_blockchain_methods()
+
 def handle_dinari_getRecentBlocks(params):
     """Get recent blocks - REAL DATA VERSION"""
     try:
