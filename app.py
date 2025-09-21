@@ -1735,11 +1735,8 @@ if __name__ == '__main__':
         logger.info(f"🚀 Starting DinariBlockchain API server on port {PORT}")
         logger.info(f"📍 Using DT-prefixed address format with genesis compatibility")
         logger.info(f"🔑 Supporting {len(DinariAddress.GENESIS_ADDRESSES)} known genesis addresses")
-        app.run(
-            host='0.0.0.0',
-            port=PORT,
-            debug=False
-        )
+        
+        app.run(host='0.0.0.0', port=PORT, debug=False)
         
     except Exception as e:
         logger.error(f"❌ Failed to start API server: {e}")
