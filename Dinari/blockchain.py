@@ -15,12 +15,13 @@ from decimal import Decimal, getcontext
 import logging
 import requests  # Add this import
 import urllib.parse  # Add this import
-import random  # For demo price simulation 
+import random  # For demo price simulation
 import statistics  # For price averaging
 from .database import DinariLevelDB
 
 # Set precision for financial calculations
 getcontext().prec = 28
+
 
 @dataclass
 class Transaction:
@@ -36,11 +37,11 @@ class Transaction:
     timestamp: int = 0
     tx_type: str = "transfer"  # transfer, contract_deploy, contract_call
     contract_address: str = ""
-    
+
     def __post_init__(self):
         if self.timestamp == 0:
             self.timestamp = int(time.time())
-    
+
     def to_dict(self) -> dict:
         return {
             "from_address": self.from_address,
@@ -55,11 +56,18 @@ class Transaction:
             "tx_type": self.tx_type,
             "contract_address": self.contract_address
         }
-    
+
     def get_hash(self) -> str:
         """Calculate transaction hash"""
-        tx_string = f"{self.from_address}{self.to_address}{self.amount}{self.nonce}{self.timestamp}{self.data}"
+        tx_string = f"{
+    self.from_address}{
+        self.to_address}{
+            self.amount}{
+                self.nonce}{
+                    self.timestamp}{
+                        self.data}"
         return hashlib.sha256(tx_string.encode()).hexdigest()
+
 
 @dataclass
 class Block:
@@ -72,11 +80,11 @@ class Block:
     validator: str = ""
     gas_used: int = 0
     gas_limit: int = 10000000
-    
+
     def __post_init__(self):
         if self.timestamp == 0:
             self.timestamp = int(time.time())
-    
+
     def to_dict(self) -> dict:
         return {
             "index": self.index,
@@ -89,7 +97,7 @@ class Block:
             "gas_limit": self.gas_limit,
             "hash": self.get_hash()
         }
-    
+
     def get_hash(self) -> str:
         """Calculate block hash"""
         block_string = json.dumps({
@@ -102,6 +110,7 @@ class Block:
         }, sort_keys=True)
         return hashlib.sha256(block_string.encode()).hexdigest()
 
+
 @dataclass
 class ContractState:
     """Smart contract state"""
@@ -112,13 +121,14 @@ class ContractState:
     last_executed: int
     is_active: bool = True
 
+
 class SmartContract:
     """
     Smart Contract implementation for DinariBlockchain
     Contracts are deployed and executed using DINARI gas
     """
-    
-    def __init__(self, 
+
+    def __init__(self,
                  contract_id: str,
                  code: str,
                  owner: str,
@@ -129,10 +139,10 @@ class SmartContract:
         self.owner = owner
         self.contract_type = contract_type
         self.created_at = int(time.time())
-        
+
         # Initialize contract state
         default_state = initial_state or {}
-        
+
         # Special initialization for Afrocoin stablecoin contract
         if contract_type == "afrocoin_stablecoin":
             default_state.update({
@@ -174,7 +184,7 @@ class SmartContract:
                 "governance_enabled": True,
                 "minting_paused": False
             })
-        
+
         self.state = ContractState(
             variables=default_state,
             balance=Decimal("0"),  # Contract's DINARI balance
@@ -182,32 +192,40 @@ class SmartContract:
             created_at=self.created_at,
             last_executed=0
         )
-        
+
         # Execution history
         self.execution_history: List[Dict[str, Any]] = []
-        
-    def execute(self, function_name: str, args: Dict[str, Any], caller: str, value: Decimal = Decimal("0")) -> Dict[str, Any]:
+
+    def execute(self,
+    function_name: str,
+    args: Dict[str,
+    Any],
+    caller: str,
+    value: Decimal = Decimal("0")) -> Dict[str,
+     Any]:
         """Execute a function in the smart contract"""
         try:
             # Security checks
             if function_name.startswith('_'):
                 raise ValueError("Cannot call private functions")
-            
+
             if not self.state.is_active:
                 raise ValueError("Contract is not active")
-            
+
             # Update execution timestamp
             self.state.last_executed = int(time.time())
-            
+
             # Route to appropriate function based on contract type
             if self.contract_type == "afrocoin_stablecoin":
-                result = self._execute_afrocoin_function(function_name, args, caller, value)
+                result = self._execute_afrocoin_function(
+                    function_name, args, caller, value)
             else:
-                result = self._execute_general_function(function_name, args, caller, value)
-            
+                result = self._execute_general_function(
+                    function_name, args, caller, value)
+
             # Calculate gas usage (simplified)
             gas_used = self._calculate_gas_usage(function_name, args)
-            
+
             # Log execution
             execution_log = {
                 'timestamp': self.state.last_executed,
@@ -219,14 +237,14 @@ class SmartContract:
                 'success': True
             }
             self.execution_history.append(execution_log)
-            
+
             return {
                 'success': True,
                 'result': result,
                 'gas_used': gas_used,
                 'timestamp': self.state.last_executed
             }
-            
+
         except Exception as e:
             error_log = {
                 'timestamp': int(time.time()),
@@ -237,21 +255,24 @@ class SmartContract:
                 'success': False
             }
             self.execution_history.append(error_log)
-            
+
             return {
                 'success': False,
                 'error': str(e),
                 'gas_used': 21000,  # Base gas for failed transaction
                 'timestamp': int(time.time())
             }
-        
-    def _automatic_dinari_peg_stabilization(self, caller: str) -> Dict[str, Any]:
+
+    def _automatic_dinari_peg_stabilization(
+        self, caller: str) -> Dict[str, Any]:
         """Automatic DINARI peg stabilization"""
-        current_price = Decimal(self.state.variables.get('dinari_current_price', '1.0'))
+        current_price = Decimal(
+    self.state.variables.get(
+        'dinari_current_price', '1.0'))
         deviation_check = self._check_dinari_peg_deviation()
-        
+
         interventions = []
-        
+
         # Execute DINARI rebase if needed
         if deviation_check['urgency'] in ['medium', 'high', 'critical']:
             rebase_result = self._execute_dinari_algorithmic_rebase({}, caller)
@@ -259,7 +280,7 @@ class SmartContract:
                 'type': 'dinari_algorithmic_rebase',
                 'result': rebase_result
             })
-        
+
         return {
             'success': True,
             'price_status': deviation_check,
@@ -268,21 +289,22 @@ class SmartContract:
             'timestamp': int(time.time()),
             'currency': 'DINARI'
         }
-    
 
-    def _set_canonical_afc_price(self, args: Dict[str, Any], caller: str) -> Dict[str, Any]:
+    def _set_canonical_afc_price(
+        self, args: Dict[str, Any], caller: str) -> Dict[str, Any]:
         """Set the canonical AFC/USD price that external systems should use"""
-        
+
         # Only protocol governance can set canonical price
         if caller != self.state.owner and caller != "protocol_algorithm":
-            raise ValueError("Only protocol governance can set canonical price")
-        
+            raise ValueError(
+                "Only protocol governance can set canonical price")
+
         # Algorithm determines the canonical price (always $1.00 for AFC)
         canonical_price = Decimal('1.0')  # AFC is designed to be $1.00
         confidence_score = Decimal('1.0')  # 100% confidence in our price
-        
+
         current_time = int(time.time())
-        
+
         # Update canonical price oracle
         oracle_data = {
             'price': str(canonical_price),
@@ -295,20 +317,21 @@ class SmartContract:
             'algorithm_version': '1.0',
             'last_update_block': self.blockchain.chain_state['height'] if hasattr(self, 'blockchain') else 0
         }
-        
+
         # Store canonical price
         self.state.variables['canonical_oracle'] = oracle_data
-        
+
         # Add to price feed history for external consumers
-        price_feed_history = self.state.variables.get('canonical_price_history', [])
+        price_feed_history = self.state.variables.get(
+            'canonical_price_history', [])
         price_feed_history.append(oracle_data)
-        
+
         # Keep last 10,000 price updates for external systems
         if len(price_feed_history) > 10000:
             price_feed_history = price_feed_history[-10000:]
-        
+
         self.state.variables['canonical_price_history'] = price_feed_history
-        
+
         return {
             'success': True,
             'canonical_price': str(canonical_price),
@@ -317,24 +340,26 @@ class SmartContract:
             'price_authority': 'afrocoin_protocol',
             'external_integrations_ready': True
         }
-    
 
     def _get_canonical_dinari_price(self) -> Dict[str, Any]:
         """External systems call this to get the authoritative DINARI price"""
-        
-        dinari_oracle_data = self.state.variables.get('canonical_dinari_oracle', {})
-        
+
+        dinari_oracle_data = self.state.variables.get(
+            'canonical_dinari_oracle', {})
+
         if not dinari_oracle_data:
             # Initialize with default $1.00 DINARI price if not set
             self._set_canonical_dinari_price({}, "protocol_algorithm")
-            dinari_oracle_data = self.state.variables.get('canonical_dinari_oracle', {})
-        
+            dinari_oracle_data = self.state.variables.get(
+                'canonical_dinari_oracle', {})
+
         current_time = int(time.time())
         last_update = dinari_oracle_data.get('timestamp', 0)
-        
+
         # DINARI price is always fresh (algorithm maintains $1.00)
-        is_fresh = (current_time - last_update) < 3600  # Fresh if updated within 1 hour
-        
+        # Fresh if updated within 1 hour
+        is_fresh = (current_time - last_update) < 3600
+
         return {
             'price': dinari_oracle_data.get('price', '1.0'),
             'timestamp': dinari_oracle_data.get('timestamp', current_time),
@@ -349,21 +374,23 @@ class SmartContract:
             'oracle_contract': 'afrocoin_stablecoin',
             'token_type': 'native_blockchain_token'
         }
-    
 
-    def _set_canonical_dinari_price(self, args: Dict[str, Any], caller: str) -> Dict[str, Any]:
+    def _set_canonical_dinari_price(
+        self, args: Dict[str, Any], caller: str) -> Dict[str, Any]:
         """Set the canonical DINARI/USD price that external systems should use"""
-        
+
         # Only protocol governance can set canonical price
         if caller != self.state.owner and caller != "protocol_algorithm":
-            raise ValueError("Only protocol governance can set canonical DINARI price")
-        
+            raise ValueError(
+                "Only protocol governance can set canonical DINARI price")
+
         # Algorithm determines the canonical DINARI price (always $1.00)
-        canonical_dinari_price = Decimal('1.0')  # DINARI is designed to be $1.00
+        # DINARI is designed to be $1.00
+        canonical_dinari_price = Decimal('1.0')
         confidence_score = Decimal('1.0')  # 100% confidence in our price
-        
+
         current_time = int(time.time())
-        
+
         # Update canonical DINARI price oracle
         dinari_oracle_data = {
             'price': str(canonical_dinari_price),
@@ -377,20 +404,21 @@ class SmartContract:
             'last_update_block': self.blockchain.chain_state['height'] if hasattr(self, 'blockchain') else 0,
             'token_type': 'native_token'
         }
-        
+
         # Store canonical DINARI price
         self.state.variables['canonical_dinari_oracle'] = dinari_oracle_data
-        
+
         # Add to DINARI price feed history for external consumers
-        dinari_price_feed_history = self.state.variables.get('canonical_dinari_price_history', [])
+        dinari_price_feed_history = self.state.variables.get(
+            'canonical_dinari_price_history', [])
         dinari_price_feed_history.append(dinari_oracle_data)
-        
+
         # Keep last 10,000 DINARI price updates for external systems
         if len(dinari_price_feed_history) > 10000:
             dinari_price_feed_history = dinari_price_feed_history[-10000:]
-        
+
         self.state.variables['canonical_dinari_price_history'] = dinari_price_feed_history
-        
+
         return {
             'success': True,
             'canonical_dinari_price': str(canonical_dinari_price),
@@ -400,21 +428,26 @@ class SmartContract:
             'external_integrations_ready': True,
             'token': 'DINARI'
         }
-    
-    def _register_dinari_external_consumer(self, args: Dict[str, Any], caller: str) -> Dict[str, Any]:
+
+    def _register_dinari_external_consumer(
+        self, args: Dict[str, Any], caller: str) -> Dict[str, Any]:
         """Register external DEXs/protocols that will use our DINARI price feed"""
-        
+
         consumer_name = args.get('name', '')
         consumer_contract = args.get('contract_address', '')
         consumer_type = args.get('type', 'dex')  # dex, amm, lending, cex, etc.
-        update_frequency = args.get('update_frequency', 300)  # How often they'll query
-        integration_purpose = args.get('purpose', 'trading')  # trading, lending, staking, etc.
-        
+        update_frequency = args.get(
+    'update_frequency',
+     300)  # How often they'll query
+        # trading, lending, staking, etc.
+        integration_purpose = args.get('purpose', 'trading')
+
         if not consumer_name or not consumer_contract:
             raise ValueError("Consumer name and contract address required")
-        
-        dinari_consumers = self.state.variables.get('dinari_external_consumers', {})
-        
+
+        dinari_consumers = self.state.variables.get(
+            'dinari_external_consumers', {})
+
         consumer_id = f"dinari_{consumer_name}_{consumer_contract[:10]}"
         dinari_consumers[consumer_id] = {
             'name': consumer_name,
@@ -428,9 +461,9 @@ class SmartContract:
             'status': 'active',
             'token': 'DINARI'
         }
-        
+
         self.state.variables['dinari_external_consumers'] = dinari_consumers
-        
+
         return {
             'success': True,
             'consumer_id': consumer_id,
@@ -443,40 +476,44 @@ class SmartContract:
                 'African blockchain native currency'
             ]
         }
-    
 
     def _track_dinari_external_query(self, consumer_id: str):
         """Track when external systems query our DINARI oracle"""
-        dinari_consumers = self.state.variables.get('dinari_external_consumers', {})
-        
+        dinari_consumers = self.state.variables.get(
+            'dinari_external_consumers', {})
+
         if consumer_id in dinari_consumers:
             dinari_consumers[consumer_id]['last_query'] = int(time.time())
             dinari_consumers[consumer_id]['total_queries'] += 1
             self.state.variables['dinari_external_consumers'] = dinari_consumers
-    
 
     def _get_dinari_oracle_integration_status(self) -> Dict[str, Any]:
         """Get status of external integrations using our DINARI oracle"""
-        
-        dinari_consumers = self.state.variables.get('dinari_external_consumers', {})
-        canonical_dinari_data = self.state.variables.get('canonical_dinari_oracle', {})
-        
+
+        dinari_consumers = self.state.variables.get(
+            'dinari_external_consumers', {})
+        canonical_dinari_data = self.state.variables.get(
+            'canonical_dinari_oracle', {})
+
         # Calculate DINARI integration stats
         total_dinari_consumers = len(dinari_consumers)
-        active_dinari_consumers = len([c for c in dinari_consumers.values() if c.get('status') == 'active'])
-        total_dinari_queries = sum(c.get('total_queries', 0) for c in dinari_consumers.values())
-        
+        active_dinari_consumers = len(
+            [c for c in dinari_consumers.values() if c.get('status') == 'active'])
+        total_dinari_queries = sum(c.get('total_queries', 0)
+                                   for c in dinari_consumers.values())
+
         recent_dinari_queries = len([
-            c for c in dinari_consumers.values() 
-            if (int(time.time()) - c.get('last_query', 0)) < 3600  # Queried in last hour
+            c for c in dinari_consumers.values()
+            # Queried in last hour
+            if (int(time.time()) - c.get('last_query', 0)) < 3600
         ])
-        
+
         # Categorize consumers by type
         consumer_types = {}
         for consumer in dinari_consumers.values():
             ctype = consumer.get('type', 'unknown')
             consumer_types[ctype] = consumer_types.get(ctype, 0) + 1
-        
+
         return {
             'canonical_dinari_price': canonical_dinari_data.get('price', '1.0'),
             'dinari_price_authority_status': 'active',
@@ -494,17 +531,17 @@ class SmartContract:
                 'African blockchain economic sovereignty'
             ]
         }
-    
 
     def _get_dual_token_oracle_status(self) -> Dict[str, Any]:
         """Get combined status of both AFC and DINARI oracles"""
-        
+
         afc_oracle = self.state.variables.get('canonical_oracle', {})
         dinari_oracle = self.state.variables.get('canonical_dinari_oracle', {})
-        
+
         afc_consumers = self.state.variables.get('external_consumers', {})
-        dinari_consumers = self.state.variables.get('dinari_external_consumers', {})
-        
+        dinari_consumers = self.state.variables.get(
+            'dinari_external_consumers', {})
+
         return {
             'protocol_name': 'Afrocoin Dual Token System',
             'price_authority_status': 'active',
@@ -537,11 +574,10 @@ class SmartContract:
                 'dinari_dex_feed': 'get_dinari_price_feed_for_dex'
             }
         }
-    
 
     def _create_dinari_oracle_documentation(self) -> Dict[str, Any]:
         """Generate integration documentation for DINARI oracle"""
-        
+
         return {
             'oracle_name': 'DINARI Canonical Price Oracle',
             'description': 'Authoritative DINARI/USD price maintained at exactly $1.00 by algorithmic protocol',
@@ -556,7 +592,7 @@ class SmartContract:
                     'guaranteed_price': '1.00 USD'
                 },
                 'dinari_dex_integration': {
-                    'method': 'dinari_callContract', 
+                    'method': 'dinari_callContract',
                     'params': ['afrocoin_stablecoin', 'get_dinari_price_feed_for_dex', 'caller_address', {'format': 'chainlink|pyth|band|standard'}],
                     'supported_formats': ['chainlink', 'pyth', 'uma', 'band', 'standard'],
                     'decimals': 18,
@@ -595,36 +631,41 @@ class SmartContract:
             }
         }
 
-    def _get_dinari_price_feed_for_dex(self, args: Dict[str, Any]) -> Dict[str, Any]:
+    def _get_dinari_price_feed_for_dex(
+        self, args: Dict[str, Any]) -> Dict[str, Any]:
         """Standardized DINARI price feed format for DEX integration"""
-        
-        dex_format = args.get('format', 'standard')  # standard, chainlink, pyth, etc.
-        
+
+        # standard, chainlink, pyth, etc.
+        dex_format = args.get('format', 'standard')
+
         canonical_dinari_data = self._get_canonical_dinari_price()
-        
+
         if dex_format == 'chainlink':
             # Chainlink-compatible format for DINARI
             return {
-                'answer': int(Decimal(canonical_dinari_data['price']) * 10**8),  # Price with 8 decimals
+                # Price with 8 decimals
+                'answer': int(Decimal(canonical_dinari_data['price']) * 10**8),
                 'timestamp': canonical_dinari_data['timestamp'],
-                'roundId': canonical_dinari_data['timestamp'],  # Use timestamp as round ID
+                # Use timestamp as round ID
+                'roundId': canonical_dinari_data['timestamp'],
                 'startedAt': canonical_dinari_data['timestamp'],
                 'updatedAt': canonical_dinari_data['timestamp'],
                 'decimals': 8,
                 'pair': 'DINARI/USD',
                 'oracle_type': 'canonical_protocol'
             }
-        
+
         elif dex_format == 'pyth':
             # Pyth-compatible format for DINARI
             return {
                 'price': int(Decimal(canonical_dinari_data['price']) * 10**8),
-                'conf': int(Decimal('0.001') * 10**8),  # 0.1% confidence interval
+                # 0.1% confidence interval
+                'conf': int(Decimal('0.001') * 10**8),
                 'expo': -8,
                 'publish_time': canonical_dinari_data['timestamp'],
                 'symbol': 'DINARI/USD'
             }
-        
+
         elif dex_format == 'uma':
             # UMA-compatible format for DINARI
             return {
@@ -633,17 +674,18 @@ class SmartContract:
                 'identifier': 'DINARIUSD',
                 'ancillaryData': 'native_token=true'
             }
-        
+
         elif dex_format == 'band':
             # Band Protocol format for DINARI
             return {
-                'rate': int(Decimal(canonical_dinari_data['price']) * 10**9),  # 9 decimals
+                # 9 decimals
+                'rate': int(Decimal(canonical_dinari_data['price']) * 10**9),
                 'last_updated_base': canonical_dinari_data['timestamp'],
                 'last_updated_quote': canonical_dinari_data['timestamp'],
                 'request_id': canonical_dinari_data['timestamp'],
                 'symbol': 'DINARI'
             }
-        
+
         else:
             # Standard format for general DEX integration
             return {
@@ -656,24 +698,24 @@ class SmartContract:
                 'token_type': 'native_token',
                 'guaranteed_rate': '1.00_usd'
             }
-        
 
     def _get_canonical_afc_price(self) -> Dict[str, Any]:
         """External systems call this to get the authoritative AFC price"""
-        
+
         oracle_data = self.state.variables.get('canonical_oracle', {})
-        
+
         if not oracle_data:
             # Initialize with default $1.00 price if not set
             self._set_canonical_afc_price({}, "protocol_algorithm")
             oracle_data = self.state.variables.get('canonical_oracle', {})
-        
+
         current_time = int(time.time())
         last_update = oracle_data.get('timestamp', 0)
-        
+
         # Price is always fresh (algorithm maintains $1.00)
-        is_fresh = (current_time - last_update) < 3600  # Fresh if updated within 1 hour
-        
+        # Fresh if updated within 1 hour
+        is_fresh = (current_time - last_update) < 3600
+
         return {
             'price': oracle_data.get('price', '1.0'),
             'timestamp': oracle_data.get('timestamp', current_time),
@@ -687,35 +729,38 @@ class SmartContract:
             'last_update_ago_seconds': current_time - last_update,
             'oracle_contract': 'afrocoin_stablecoin'
         }
-    
 
     def _get_price_feed_for_dex(self, args: Dict[str, Any]) -> Dict[str, Any]:
         """Standardized price feed format for DEX integration"""
-        
-        dex_format = args.get('format', 'standard')  # standard, chainlink, pyth, etc.
-        
+
+        # standard, chainlink, pyth, etc.
+        dex_format = args.get('format', 'standard')
+
         canonical_data = self._get_canonical_afc_price()
-        
+
         if dex_format == 'chainlink':
             # Chainlink-compatible format
             return {
-                'answer': int(Decimal(canonical_data['price']) * 10**8),  # Price with 8 decimals
+                # Price with 8 decimals
+                'answer': int(Decimal(canonical_data['price']) * 10**8),
                 'timestamp': canonical_data['timestamp'],
-                'roundId': canonical_data['timestamp'],  # Use timestamp as round ID
+                # Use timestamp as round ID
+                'roundId': canonical_data['timestamp'],
                 'startedAt': canonical_data['timestamp'],
                 'updatedAt': canonical_data['timestamp'],
                 'decimals': 8
             }
-        
+
         elif dex_format == 'pyth':
             # Pyth-compatible format
             return {
                 'price': int(Decimal(canonical_data['price']) * 10**8),
-                'conf': int(Decimal('0.001') * 10**8),  # 0.1% confidence interval
+                # 0.1% confidence interval
+                'conf': int(Decimal('0.001') * 10**8),
                 'expo': -8,
                 'publish_time': canonical_data['timestamp']
             }
-        
+
         elif dex_format == 'uma':
             # UMA-compatible format
             return {
@@ -724,7 +769,7 @@ class SmartContract:
                 'identifier': 'AFCUSD',
                 'ancillaryData': ''
             }
-        
+
         else:
             # Standard format for general DEX integration
             return {
@@ -736,21 +781,22 @@ class SmartContract:
                 'source': 'afrocoin_canonical_oracle'
             }
 
-
-
-    def _register_external_consumer(self, args: Dict[str, Any], caller: str) -> Dict[str, Any]:
+    def _register_external_consumer(
+        self, args: Dict[str, Any], caller: str) -> Dict[str, Any]:
         """Register external DEXs/protocols that will use our price feed"""
-        
+
         consumer_name = args.get('name', '')
         consumer_contract = args.get('contract_address', '')
         consumer_type = args.get('type', 'dex')  # dex, amm, lending, etc.
-        update_frequency = args.get('update_frequency', 300)  # How often they'll query
-        
+        update_frequency = args.get(
+    'update_frequency',
+     300)  # How often they'll query
+
         if not consumer_name or not consumer_contract:
             raise ValueError("Consumer name and contract address required")
-        
+
         consumers = self.state.variables.get('external_consumers', {})
-        
+
         consumer_id = f"{consumer_name}_{consumer_contract[:10]}"
         consumers[consumer_id] = {
             'name': consumer_name,
@@ -762,9 +808,9 @@ class SmartContract:
             'total_queries': 0,
             'status': 'active'
         }
-        
+
         self.state.variables['external_consumers'] = consumers
-        
+
         return {
             'success': True,
             'consumer_id': consumer_id,
@@ -772,34 +818,35 @@ class SmartContract:
             'dex_endpoint': 'get_price_feed_for_dex',
             'price_guarantee': '1.00 USD maintained by protocol algorithm'
         }
-    
 
     def _track_external_query(self, consumer_id: str):
         """Track when external systems query our oracle"""
         consumers = self.state.variables.get('external_consumers', {})
-        
+
         if consumer_id in consumers:
             consumers[consumer_id]['last_query'] = int(time.time())
             consumers[consumer_id]['total_queries'] += 1
             self.state.variables['external_consumers'] = consumers
 
-
     def _get_oracle_integration_status(self) -> Dict[str, Any]:
         """Get status of external integrations using our oracle"""
-        
+
         consumers = self.state.variables.get('external_consumers', {})
         canonical_data = self.state.variables.get('canonical_oracle', {})
-        
+
         # Calculate integration stats
         total_consumers = len(consumers)
-        active_consumers = len([c for c in consumers.values() if c.get('status') == 'active'])
-        total_queries = sum(c.get('total_queries', 0) for c in consumers.values())
-        
+        active_consumers = len(
+            [c for c in consumers.values() if c.get('status') == 'active'])
+        total_queries = sum(c.get('total_queries', 0)
+                            for c in consumers.values())
+
         recent_queries = len([
-            c for c in consumers.values() 
-            if (int(time.time()) - c.get('last_query', 0)) < 3600  # Queried in last hour
+            c for c in consumers.values()
+            # Queried in last hour
+            if (int(time.time()) - c.get('last_query', 0)) < 3600
         ])
-        
+
         return {
             'canonical_price': canonical_data.get('price', '1.0'),
             'price_authority_status': 'active',
@@ -811,11 +858,10 @@ class SmartContract:
             'price_stability': 'guaranteed_1_usd',
             'integration_ready': True
         }
-    
 
     def _create_oracle_documentation(self) -> Dict[str, Any]:
         """Generate integration documentation for external developers"""
-        
+
         return {
             'oracle_name': 'Afrocoin Canonical Price Oracle',
             'description': 'Authoritative AFC/USD price maintained at exactly $1.00 by algorithmic protocol',
@@ -829,7 +875,7 @@ class SmartContract:
                     'guaranteed_price': '1.00 USD'
                 },
                 'dex_integration': {
-                    'method': 'dinari_callContract', 
+                    'method': 'dinari_callContract',
                     'params': ['afrocoin_stablecoin', 'get_price_feed_for_dex', 'caller_address', {'format': 'chainlink|pyth|standard'}],
                     'supported_formats': ['chainlink', 'pyth', 'uma', 'standard'],
                     'decimals': 18,
@@ -859,7 +905,6 @@ class SmartContract:
                 'python': 'requests.post(oracle_url, json=rpc_payload)'
             }
         }
-        
 
     def _fetch_dinari_price_from_apis(self) -> Optional[Decimal]:
         """Fetch DINARI market price from external REST APIs"""
@@ -877,7 +922,7 @@ class SmartContract:
                         return Decimal(str(data['dinari']['usd']))
             except:
                 pass
-            
+
             # Method 2: Use reference coins and simulate DINARI market price
             try:
                 response = requests.get(
@@ -887,35 +932,42 @@ class SmartContract:
                 if response.status_code == 200:
                     data = response.json()
                     if 'ethereum' in data:
-                        # Simulate DINARI market based on ETH volatility patterns
+                        # Simulate DINARI market based on ETH volatility
+                        # patterns
                         import random
                         base_dinari_price = Decimal('1.0')
-                        
+
                         # Create realistic market volatility around $1.00
                         import time
                         current_minute = int(time.time()) // 60
-                        
+
                         if current_minute % 10 == 0:  # Every 10 minutes, different market conditions
                             # Simulate buying pressure
-                            market_movement = Decimal(str(random.uniform(0.005, 0.030)))  # 0.5-3% above
+                            market_movement = Decimal(
+                                # 0.5-3% above
+                                str(random.uniform(0.005, 0.030)))
                             dinari_price = base_dinari_price + market_movement
                         elif current_minute % 10 == 1:
                             # Simulate selling pressure
-                            market_movement = Decimal(str(random.uniform(-0.030, -0.005)))  # 0.5-3% below
+                            market_movement = Decimal(
+                                # 0.5-3% below
+                                str(random.uniform(-0.030, -0.005)))
                             dinari_price = base_dinari_price + market_movement
                         elif current_minute % 10 == 2:
                             # Simulate high volatility
-                            market_movement = Decimal(str(random.uniform(-0.050, 0.050)))  # ±5%
+                            market_movement = Decimal(
+                                str(random.uniform(-0.050, 0.050)))  # ±5%
                             dinari_price = base_dinari_price + market_movement
                         else:
                             # Simulate normal conditions
-                            market_movement = Decimal(str(random.uniform(-0.010, 0.010)))  # ±1%
+                            market_movement = Decimal(
+                                str(random.uniform(-0.010, 0.010)))  # ±1%
                             dinari_price = base_dinari_price + market_movement
-                        
+
                         return dinari_price
             except:
                 pass
-            
+
             # Method 3: Binance API reference
             try:
                 response = requests.get(
@@ -925,92 +977,109 @@ class SmartContract:
                 if response.status_code == 200:
                     # Use ETH as volatility reference for DINARI
                     import random
-                    return Decimal('1.0') + Decimal(str(random.uniform(-0.020, 0.020)))  # ±2%
+                    return Decimal(
+                        # ±2%
+                        '1.0') + Decimal(str(random.uniform(-0.020, 0.020)))
             except:
                 pass
-            
+
             # Method 4: Final fallback - simulated realistic price
             import random
             volatility = random.uniform(-0.025, 0.025)  # ±2.5% max volatility
             return Decimal('1.0') + Decimal(str(volatility))
-            
+
         except Exception as e:
             self.logger.error(f"Failed to fetch DINARI price from APIs: {e}")
             return None
 
-    def _execute_dinari_algorithmic_rebase(self, args: Dict[str, Any], caller: str) -> Dict[str, Any]:
+    def _execute_dinari_algorithmic_rebase(
+        self, args: Dict[str, Any], caller: str) -> Dict[str, Any]:
             """Execute algorithmic DINARI supply rebase to restore $1.00 USD peg"""
-            current_price = Decimal(self.state.variables.get('dinari_current_price', '1.0'))
+            current_price = Decimal(
+    self.state.variables.get(
+        'dinari_current_price', '1.0'))
             target_price = Decimal('1.0')
-            
+
             # Get current DINARI supply from blockchain
             if not hasattr(self, 'blockchain'):
-                return {'success': False, 'reason': 'Cannot access blockchain instance'}
-            
-            current_supply = sum(Decimal(balance) for balance in self.blockchain.dinari_balances.values())
-            
+                return {
+    'success': False,
+     'reason': 'Cannot access blockchain instance'}
+
+            current_supply = sum(
+    Decimal(balance) for balance in self.blockchain.dinari_balances.values())
+
             if current_supply <= 0:
-                return {'success': False, 'reason': 'No DINARI supply to rebase'}
-            
+                return {
+    'success': False,
+     'reason': 'No DINARI supply to rebase'}
+
             # Calculate required supply adjustment
             price_ratio = current_price / target_price
-            
+
             # Rebase parameters for DINARI
             max_rebase_percent = Decimal('0.10')  # Max 10% per rebase
             rebase_factor = Decimal('0.5')  # 50% of price deviation
-            
+
             if current_price > target_price:
                 # DINARI overvalued -> increase supply
                 supply_increase_needed = (price_ratio - 1) * rebase_factor
-                supply_increase = min(supply_increase_needed, max_rebase_percent)
+                supply_increase = min(
+    supply_increase_needed, max_rebase_percent)
                 new_supply = current_supply * (1 + supply_increase)
                 action = "EXPAND"
-                
+
             elif current_price < target_price:
-                # DINARI undervalued -> decrease supply  
+                # DINARI undervalued -> decrease supply
                 supply_decrease_needed = (1 - price_ratio) * rebase_factor
-                supply_decrease = min(supply_decrease_needed, max_rebase_percent)
+                supply_decrease = min(
+    supply_decrease_needed, max_rebase_percent)
                 new_supply = current_supply * (1 - supply_decrease)
                 action = "CONTRACT"
-                
+
             else:
-                return {'success': False, 'reason': 'No rebase needed - price at target'}
-            
+                return {
+    'success': False,
+     'reason': 'No rebase needed - price at target'}
+
             # Check rebase cooldown
-            last_rebase = self.state.variables.get('last_dinari_rebase_time', 0)
+            last_rebase = self.state.variables.get(
+                'last_dinari_rebase_time', 0)
             cooldown_period = 3600  # 1 hour cooldown
             current_time = int(time.time())
-            
+
             if current_time - last_rebase < cooldown_period:
                 return {
                     'success': False,
                     'reason': f'DINARI rebase cooldown active. {cooldown_period - (current_time - last_rebase)} seconds remaining'
                 }
-            
+
             # Execute DINARI rebase by adjusting all balances proportionally
             old_supply = current_supply
             supply_ratio = new_supply / old_supply
-            
+
             # Update all DINARI balances proportionally
             updated_balances = {}
             for address, balance_str in self.blockchain.dinari_balances.items():
                 old_balance = Decimal(balance_str)
                 new_balance = old_balance * supply_ratio
                 updated_balances[address] = str(new_balance)
-            
+
             # Apply the rebase to blockchain
             self.blockchain.dinari_balances = updated_balances
-            
+
             # Update total supply in chain state
-            self.blockchain.chain_state['total_dinari_supply'] = str(new_supply)
-            
+            self.blockchain.chain_state['total_dinari_supply'] = str(
+                new_supply)
+
             # Save to database
             self.blockchain._save_balances()
             self.blockchain._save_chain_state()
-            
+
             # Record rebase event
             self.state.variables['last_dinari_rebase_time'] = current_time
-            dinari_rebase_history = self.state.variables.get('dinari_rebase_history', [])
+            dinari_rebase_history = self.state.variables.get(
+                'dinari_rebase_history', [])
             rebase_event = {
                 'timestamp': current_time,
                 'action': action,
@@ -1022,13 +1091,13 @@ class SmartContract:
                 'triggered_by': caller
             }
             dinari_rebase_history.append(rebase_event)
-            
+
             # Keep only last 50 rebase events
             if len(dinari_rebase_history) > 50:
                 dinari_rebase_history = dinari_rebase_history[-50:]
-            
+
             self.state.variables['dinari_rebase_history'] = dinari_rebase_history
-            
+
             return {
                 'success': True,
                 'action': action,
@@ -1044,20 +1113,23 @@ class SmartContract:
 
     def _get_dinari_stability_metrics(self) -> Dict[str, Any]:
         """Get comprehensive DINARI stability metrics"""
-        current_price = Decimal(self.state.variables.get('dinari_current_price', '1.0'))
-        
+        current_price = Decimal(
+    self.state.variables.get(
+        'dinari_current_price', '1.0'))
+
         # Get total DINARI supply
         total_supply = Decimal('0')
         if hasattr(self, 'blockchain'):
-            total_supply = sum(Decimal(balance) for balance in self.blockchain.dinari_balances.values())
-        
+            total_supply = sum(Decimal(balance)
+                               for balance in self.blockchain.dinari_balances.values())
+
         # Calculate metrics
         deviation = abs(current_price - Decimal('1.0')) / Decimal('1.0')
-        
+
         # Recent activity
         price_history = self.state.variables.get('dinari_price_history', [])
         rebase_history = self.state.variables.get('dinari_rebase_history', [])
-        
+
         return {
             'current_price': str(current_price),
             'target_price': '1.0',
@@ -1070,20 +1142,22 @@ class SmartContract:
             'rebases_count': len(rebase_history),
             'api_status': 'active' if price_history else 'inactive'
         }
-    
+
     def _check_dinari_peg_deviation(self) -> Dict[str, Any]:
         """Check DINARI peg deviation from $1.00 USD"""
-        current_price = Decimal(self.state.variables.get('dinari_current_price', '1.0'))
+        current_price = Decimal(
+    self.state.variables.get(
+        'dinari_current_price', '1.0'))
         target_price = Decimal('1.0')
-            
+
         deviation = abs(current_price - target_price) / target_price
         deviation_percent = deviation * 100
-            
+
         # Define intervention thresholds for DINARI
         minor_threshold = Decimal('0.01')   # 1% - monitor
         major_threshold = Decimal('0.02')   # 2% - intervene
-        critical_threshold = Decimal('0.05') # 5% - emergency
-            
+        critical_threshold = Decimal('0.05')  # 5% - emergency
+
         if deviation <= minor_threshold:
             status = "STABLE"
             action = "none"
@@ -1093,17 +1167,18 @@ class SmartContract:
             action = "algorithmic_rebase"
             urgency = "medium"
         elif deviation <= critical_threshold:
-            status = "MAJOR_DEVIATION" 
+            status = "MAJOR_DEVIATION"
             action = "stability_intervention"
             urgency = "high"
         else:
             status = "CRITICAL_DEVIATION"
             action = "emergency_stabilization"
             urgency = "critical"
-            
+
         # Get current total DINARI supply
-        total_supply = str(sum(Decimal(balance) for balance in self.blockchain.dinari_balances.values()) if hasattr(self, 'blockchain') else Decimal('0'))
-            
+        total_supply = str(sum(Decimal(balance) for balance in self.blockchain.dinari_balances.values(
+        )) if hasattr(self, 'blockchain') else Decimal('0'))
+
         return {
                 'current_price': str(current_price),
                 'target_price': str(target_price),
@@ -1116,35 +1191,40 @@ class SmartContract:
                 'currency': 'DINARI'
             }
 
-    def _auto_update_dinari_price_from_api(self, caller: str = "system") -> Dict[str, Any]:
+    def _auto_update_dinari_price_from_api(
+        self, caller: str = "system") -> Dict[str, Any]:
             """Automatically update DINARI price from external APIs"""
             # Check if enough time has passed since last update
-            last_update = self.state.variables.get('last_dinari_auto_update', 0)
+            last_update = self.state.variables.get(
+                'last_dinari_auto_update', 0)
             current_time = int(time.time())
             update_cooldown = 60  # 60 seconds between API calls
-            
+
             if current_time - last_update < update_cooldown:
                 return {
                     'success': False,
                     'reason': f'Update cooldown active. {update_cooldown - (current_time - last_update)} seconds remaining'
                 }
-            
+
             # Fetch DINARI price from APIs
             new_price = self._fetch_dinari_price_from_apis()
-            
+
             if new_price is None:
                 return {
                     'success': False,
                     'reason': 'Failed to fetch DINARI price from external APIs'
                 }
-            
+
             # Update DINARI price oracle
-            old_price = Decimal(self.state.variables.get('dinari_current_price', '1.0'))
+            old_price = Decimal(
+    self.state.variables.get(
+        'dinari_current_price', '1.0'))
             self.state.variables['dinari_current_price'] = str(new_price)
             self.state.variables['last_dinari_auto_update'] = current_time
-            
+
             # Add to DINARI price history
-            dinari_price_history = self.state.variables.get('dinari_price_history', [])
+            dinari_price_history = self.state.variables.get(
+                'dinari_price_history', [])
             price_entry = {
                 'price': str(new_price),
                 'timestamp': current_time,
@@ -1153,25 +1233,26 @@ class SmartContract:
                 'auto_updated': True
             }
             dinari_price_history.append(price_entry)
-            
+
             # Keep only last 100 entries
             if len(dinari_price_history) > 100:
                 dinari_price_history = dinari_price_history[-100:]
-            
+
             self.state.variables['dinari_price_history'] = dinari_price_history
-            
+
             # Calculate deviation from $1.00 target
             deviation = abs(new_price - Decimal('1.0')) / Decimal('1.0')
-            
+
             # Auto-trigger DINARI stabilization if needed
             auto_stabilized = False
             if deviation > Decimal('0.02'):  # 2% threshold
                 try:
-                    stabilize_result = self._automatic_dinari_peg_stabilization(caller)
+                    stabilize_result = self._automatic_dinari_peg_stabilization(
+                        caller)
                     auto_stabilized = stabilize_result.get('success', False)
                 except:
                     pass
-            
+
             return {
                 'success': True,
                 'old_price': str(old_price),
@@ -1181,17 +1262,18 @@ class SmartContract:
                 'auto_stabilized': auto_stabilized,
                 'next_update_in': update_cooldown
             }
-            
-    
+
     def _get_dinari_api_status(self) -> Dict[str, Any]:
         """Get status of DINARI API price updates"""
         last_update = self.state.variables.get('last_dinari_auto_update', 0)
         current_time = int(time.time())
         time_since_update = current_time - last_update
-        
+
         price_history = self.state.variables.get('dinari_price_history', [])
-        auto_updates = [p for p in price_history if p.get('auto_updated', False)]
-        
+        auto_updates = [
+    p for p in price_history if p.get(
+        'auto_updated', False)]
+
         return {
             'last_auto_update': last_update,
             'time_since_last_update_seconds': time_since_update,
@@ -1202,21 +1284,23 @@ class SmartContract:
             'currency': 'DINARI'
         }
 
-    def _update_usd_price_oracle(self, args: Dict[str, Any], caller: str) -> Dict[str, Any]:
+    def _update_usd_price_oracle(
+        self, args: Dict[str, Any], caller: str) -> Dict[str, Any]:
         """Update AFC/USD price from external oracles"""
         new_price = args.get('price')
         oracle_source = args.get('source', 'manual')
         confidence = Decimal(str(args.get('confidence', '1.0')))
-    
+
         if not new_price:
             raise ValueError("Price required")
-    
+
         new_price = Decimal(str(new_price))
-    
+
         # Validate price range (basic sanity check)
         if new_price < Decimal('0.5') or new_price > Decimal('2.0'):
-            raise ValueError(f"Price {new_price} outside acceptable range (0.5 - 2.0 USD)")
-    
+            raise ValueError(
+    f"Price {new_price} outside acceptable range (0.5 - 2.0 USD)")
+
         # Store price history
         price_history = self.state.variables.get('price_history', [])
         price_entry = {
@@ -1227,20 +1311,20 @@ class SmartContract:
             'caller': caller
         }
         price_history.append(price_entry)
-    
+
         # Keep only last 100 price updates
         if len(price_history) > 100:
             price_history = price_history[-100:]
-    
+
         # Update current price
         old_price = Decimal(self.state.variables.get('price_oracle', '1.0'))
         self.state.variables['price_oracle'] = str(new_price)
         self.state.variables['price_history'] = price_history
         self.state.variables['last_price_update'] = int(time.time())
-    
+
         # Calculate deviation
         deviation = abs(new_price - Decimal('1.0')) / Decimal('1.0')
-    
+
         return {
             'success': True,
             'old_price': str(old_price),
@@ -1248,9 +1332,9 @@ class SmartContract:
             'deviation_percent': str(deviation * 100),
             'source': oracle_source,
             'confidence': str(confidence),
-            'requires_intervention': deviation > Decimal('0.02')  # 2% threshold
+            # 2% threshold
+            'requires_intervention': deviation > Decimal('0.02')
         }
-    
 
     def _fetch_usd_price_from_apis(self) -> Optional[Decimal]:
         """Fetch real USD price from external REST APIs"""
@@ -1265,16 +1349,20 @@ class SmartContract:
                     data = response.json()
                     if 'usd-coin' in data:
                         usdc_price = Decimal(str(data['usd-coin']['usd']))
-                        if abs(usdc_price - Decimal('1.0')) < Decimal('0.01'):  # USDC should be ~$1
-                            # Use USDC as reference - simulate AFC trading around it
+                        if abs(usdc_price - Decimal('1.0')
+                               ) < Decimal('0.01'):  # USDC should be ~$1
+                            # Use USDC as reference - simulate AFC trading
+                            # around it
                             import random
-                            # Simulate AFC market price with small volatility around $1
-                            volatility = Decimal(str(random.uniform(-0.02, 0.02)))  # ±2% max
+                            # Simulate AFC market price with small volatility
+                            # around $1
+                            volatility = Decimal(
+                                str(random.uniform(-0.02, 0.02)))  # ±2% max
                             afc_market_price = Decimal('1.0') + volatility
                             return afc_market_price
             except:
                 pass
-            
+
             # Method 2: Use Bitcoin as volatility reference
             try:
                 response = requests.get(
@@ -1288,27 +1376,32 @@ class SmartContract:
                         # Simulate AFC market based on BTC volatility
                         import random
                         base_afc_price = Decimal('1.0')
-                        
+
                         # Simulate market conditions based on time
                         import time
                         current_hour = int(time.time()) // 3600
                         if current_hour % 4 == 0:  # Every 4 hours, simulate different conditions
                             # Simulate bull market pressure
-                            market_pressure = Decimal(str(random.uniform(0.005, 0.025)))  # 0.5-2.5% above
+                            market_pressure = Decimal(
+                                # 0.5-2.5% above
+                                str(random.uniform(0.005, 0.025)))
                             afc_price = base_afc_price + market_pressure
                         elif current_hour % 4 == 1:
-                            # Simulate bear market pressure  
-                            market_pressure = Decimal(str(random.uniform(-0.025, -0.005)))  # 0.5-2.5% below
+                            # Simulate bear market pressure
+                            market_pressure = Decimal(
+                                # 0.5-2.5% below
+                                str(random.uniform(-0.025, -0.005)))
                             afc_price = base_afc_price + market_pressure
                         else:
                             # Simulate stable conditions
-                            market_pressure = Decimal(str(random.uniform(-0.005, 0.005)))  # ±0.5%
+                            market_pressure = Decimal(
+                                str(random.uniform(-0.005, 0.005)))  # ±0.5%
                             afc_price = base_afc_price + market_pressure
-                        
+
                         return afc_price
             except:
                 pass
-            
+
             # Method 3: Binance API fallback
             try:
                 response = requests.get(
@@ -1319,47 +1412,48 @@ class SmartContract:
                     data = response.json()
                     # Use as reference for market activity
                     import random
-                    return Decimal('1.0') + Decimal(str(random.uniform(-0.01, 0.01)))
+                    return Decimal('1.0') + \
+                                   Decimal(str(random.uniform(-0.01, 0.01)))
             except:
                 pass
-            
+
             # Method 4: Backup - return slightly volatile price
             import random
             return Decimal('1.0') + Decimal(str(random.uniform(-0.015, 0.015)))
-            
+
         except Exception as e:
             self.logger.error(f"Failed to fetch USD price from APIs: {e}")
             return None
 
-
-    def _auto_update_price_from_api(self, caller: str = "system") -> Dict[str, Any]:
+    def _auto_update_price_from_api(
+        self, caller: str = "system") -> Dict[str, Any]:
         """Automatically update AFC price from external APIs"""
-        
+
         # Check if enough time has passed since last update
         last_update = self.state.variables.get('last_auto_price_update', 0)
         current_time = int(time.time())
         update_cooldown = 60  # 60 seconds between API calls
-        
+
         if current_time - last_update < update_cooldown:
             return {
                 'success': False,
                 'reason': f'Update cooldown active. {update_cooldown - (current_time - last_update)} seconds remaining'
             }
-        
+
         # Fetch price from APIs
         new_price = self._fetch_usd_price_from_apis()
-        
+
         if new_price is None:
             return {
                 'success': False,
                 'reason': 'Failed to fetch price from external APIs'
             }
-        
+
         # Update price oracle
         old_price = Decimal(self.state.variables.get('price_oracle', '1.0'))
         self.state.variables['price_oracle'] = str(new_price)
         self.state.variables['last_auto_price_update'] = current_time
-        
+
         # Add to price history
         price_history = self.state.variables.get('price_history', [])
         price_entry = {
@@ -1370,16 +1464,16 @@ class SmartContract:
             'auto_updated': True
         }
         price_history.append(price_entry)
-        
+
         # Keep only last 100 entries
         if len(price_history) > 100:
             price_history = price_history[-100:]
-        
+
         self.state.variables['price_history'] = price_history
-        
+
         # Calculate deviation
         deviation = abs(new_price - Decimal('1.0')) / Decimal('1.0')
-        
+
         # Auto-trigger stabilization if needed
         auto_stabilized = False
         if deviation > Decimal('0.02'):  # 2% threshold
@@ -1388,7 +1482,7 @@ class SmartContract:
                 auto_stabilized = stabilize_result.get('success', False)
             except:
                 pass
-        
+
         return {
             'success': True,
             'old_price': str(old_price),
@@ -1404,10 +1498,12 @@ class SmartContract:
         last_update = self.state.variables.get('last_auto_price_update', 0)
         current_time = int(time.time())
         time_since_update = current_time - last_update
-        
+
         price_history = self.state.variables.get('price_history', [])
-        auto_updates = [p for p in price_history if p.get('auto_updated', False)]
-        
+        auto_updates = [
+    p for p in price_history if p.get(
+        'auto_updated', False)]
+
         return {
             'last_auto_update': last_update,
             'time_since_last_update_seconds': time_since_update,
@@ -1417,9 +1513,12 @@ class SmartContract:
             'price_source': 'external_apis' if auto_updates else 'manual'
         }
 
-
-    
-    def _execute_afrocoin_function(self, function_name: str, args: Dict[str, Any], caller: str, value: Decimal) -> Any:
+    def _execute_afrocoin_function(self,
+    function_name: str,
+    args: Dict[str,
+    Any],
+    caller: str,
+     value: Decimal) -> Any:
         """Execute Afrocoin stablecoin functions on DinariBlockchain"""
         if function_name == "mint_afc":
             return self._afrocoin_mint(args, caller, value)
@@ -1497,20 +1596,22 @@ class SmartContract:
             return self.state.variables["collateral_assets"]["DINARI"]["price"]
         else:
             raise ValueError(f"Unknown Afrocoin function: {function_name}")
-        
+
     def _check_peg_deviation(self) -> Dict[str, Any]:
         """Check current peg deviation and recommend actions"""
-        current_price = Decimal(self.state.variables.get('price_oracle', '1.0'))
+        current_price = Decimal(
+    self.state.variables.get(
+        'price_oracle', '1.0'))
         target_price = Decimal('1.0')
-        
+
         deviation = abs(current_price - target_price) / target_price
         deviation_percent = deviation * 100
-        
+
         # Define intervention thresholds
         minor_threshold = Decimal('0.01')   # 1% - monitor
         major_threshold = Decimal('0.02')   # 2% - intervene
-        critical_threshold = Decimal('0.05') # 5% - emergency
-        
+        critical_threshold = Decimal('0.05')  # 5% - emergency
+
         if deviation <= minor_threshold:
             status = "STABLE"
             action = "none"
@@ -1520,14 +1621,14 @@ class SmartContract:
             action = "algorithmic_rebase"
             urgency = "medium"
         elif deviation <= critical_threshold:
-            status = "MAJOR_DEVIATION" 
+            status = "MAJOR_DEVIATION"
             action = "stability_intervention"
             urgency = "high"
         else:
             status = "CRITICAL_DEVIATION"
             action = "emergency_stabilization"
             urgency = "critical"
-        
+
         return {
             'current_price': str(current_price),
             'target_price': str(target_price),
@@ -1538,70 +1639,72 @@ class SmartContract:
             'last_update': self.state.variables.get('last_price_update', 0),
             'total_supply': self.state.variables.get('total_supply', '0')
         }
-    
 
-    def _execute_algorithmic_rebase(self, args: Dict[str, Any], caller: str) -> Dict[str, Any]:
+    def _execute_algorithmic_rebase(
+        self, args: Dict[str, Any], caller: str) -> Dict[str, Any]:
         """Execute algorithmic supply rebase to restore USD peg"""
-        current_price = Decimal(self.state.variables.get('price_oracle', '1.0'))
+        current_price = Decimal(
+    self.state.variables.get(
+        'price_oracle', '1.0'))
         target_price = Decimal('1.0')
         current_supply = Decimal(self.state.variables.get('total_supply', '0'))
-        
+
         # Calculate required supply adjustment
         price_ratio = current_price / target_price
-        
+
         # Rebase parameters
         max_rebase_percent = Decimal('0.10')  # Max 10% per rebase
         rebase_factor = Decimal('0.5')  # 50% of price deviation
-        
+
         if current_price > target_price:
             # AFC overvalued -> increase supply
             supply_increase_needed = (price_ratio - 1) * rebase_factor
             supply_increase = min(supply_increase_needed, max_rebase_percent)
             new_supply = current_supply * (1 + supply_increase)
             action = "EXPAND"
-            
+
         elif current_price < target_price:
-            # AFC undervalued -> decrease supply  
+            # AFC undervalued -> decrease supply
             supply_decrease_needed = (1 - price_ratio) * rebase_factor
             supply_decrease = min(supply_decrease_needed, max_rebase_percent)
             new_supply = current_supply * (1 - supply_decrease)
             action = "CONTRACT"
-            
+
         else:
             return {
                 'success': False,
                 'reason': 'No rebase needed - price at target'
             }
-        
+
         # Check rebase cooldown (prevent rapid rebases)
         last_rebase = self.state.variables.get('last_rebase_time', 0)
         cooldown_period = 3600  # 1 hour cooldown
         current_time = int(time.time())
-        
+
         if current_time - last_rebase < cooldown_period:
             return {
                 'success': False,
                 'reason': f'Rebase cooldown active. {cooldown_period - (current_time - last_rebase)} seconds remaining'
             }
-        
+
         # Execute rebase by proportionally adjusting all balances
         old_supply = current_supply
         supply_ratio = new_supply / old_supply
-        
+
         # Update all AFC balances proportionally
         afc_balances = self.state.variables.get('balances', {})
         updated_balances = {}
-        
+
         for address, balance_str in afc_balances.items():
             old_balance = Decimal(balance_str)
             new_balance = old_balance * supply_ratio
             updated_balances[address] = str(new_balance)
-        
+
         # Update total supply and balances
         self.state.variables['total_supply'] = str(new_supply)
         self.state.variables['balances'] = updated_balances
         self.state.variables['last_rebase_time'] = current_time
-        
+
         # Record rebase event
         rebase_history = self.state.variables.get('rebase_history', [])
         rebase_event = {
@@ -1615,13 +1718,13 @@ class SmartContract:
             'triggered_by': caller
         }
         rebase_history.append(rebase_event)
-        
+
         # Keep only last 50 rebase events
         if len(rebase_history) > 50:
             rebase_history = rebase_history[-50:]
-        
+
         self.state.variables['rebase_history'] = rebase_history
-        
+
         return {
             'success': True,
             'action': action,
@@ -1633,15 +1736,16 @@ class SmartContract:
             'rebase_ratio': str(supply_ratio),
             'addresses_affected': len(updated_balances)
         }
-    
 
     def _automatic_peg_stabilization(self, caller: str) -> Dict[str, Any]:
         """Automatic multi-layer peg stabilization"""
-        current_price = Decimal(self.state.variables.get('price_oracle', '1.0'))
+        current_price = Decimal(
+    self.state.variables.get(
+        'price_oracle', '1.0'))
         deviation_check = self._check_peg_deviation()
-        
+
         interventions = []
-        
+
         # Layer 1: Algorithmic rebase
         if deviation_check['urgency'] in ['medium', 'high', 'critical']:
             rebase_result = self._execute_algorithmic_rebase({}, caller)
@@ -1649,23 +1753,24 @@ class SmartContract:
                 'type': 'algorithmic_rebase',
                 'result': rebase_result
             })
-        
+
         # Layer 2: Collateral ratio adjustment
         if deviation_check['urgency'] in ['high', 'critical']:
-            collateral_result = self._adjust_collateral_requirements(current_price)
+            collateral_result = self._adjust_collateral_requirements(
+                current_price)
             interventions.append({
                 'type': 'collateral_adjustment',
                 'result': collateral_result
             })
-        
+
         # Layer 3: Stability fee adjustment
         if deviation_check['urgency'] == 'critical':
             fee_result = self._adjust_stability_fees(current_price)
             interventions.append({
-                'type': 'stability_fee_adjustment', 
+                'type': 'stability_fee_adjustment',
                 'result': fee_result
             })
-        
+
         return {
             'success': True,
             'price_status': deviation_check,
@@ -1673,40 +1778,47 @@ class SmartContract:
             'interventions': interventions,
             'timestamp': int(time.time())
         }
-    
 
-    def _adjust_collateral_requirements(self, current_price: Decimal) -> Dict[str, Any]:
+    def _adjust_collateral_requirements(
+        self, current_price: Decimal) -> Dict[str, Any]:
         """Adjust collateral ratios based on price deviation"""
         target_price = Decimal('1.0')
-        
+
         if current_price < target_price:
             # Undervalued -> increase collateral requirements (tighten supply)
-            for asset_name, asset_data in self.state.variables['collateral_assets'].items():
+            for asset_name, asset_data in self.state.variables['collateral_assets'].items(
+            ):
                 current_ratio = Decimal(asset_data['ratio'])
-                new_ratio = min(current_ratio * Decimal('1.1'), Decimal('300'))  # Max 300%
+                new_ratio = min(
+    current_ratio *
+    Decimal('1.1'),
+     Decimal('300'))  # Max 300%
                 asset_data['ratio'] = str(new_ratio)
             action = "INCREASED"
-            
+
         else:
             # Overvalued -> decrease collateral requirements (loosen supply)
-            for asset_name, asset_data in self.state.variables['collateral_assets'].items():
+            for asset_name, asset_data in self.state.variables['collateral_assets'].items(
+            ):
                 current_ratio = Decimal(asset_data['ratio'])
-                new_ratio = max(current_ratio * Decimal('0.95'), Decimal('120'))  # Min 120%
+                new_ratio = max(
+    current_ratio *
+    Decimal('0.95'),
+     Decimal('120'))  # Min 120%
                 asset_data['ratio'] = str(new_ratio)
             action = "DECREASED"
-        
+
         return {
             'action': action,
             'current_price': str(current_price),
             'target_price': str(target_price),
             'new_ratios': {name: data['ratio'] for name, data in self.state.variables['collateral_assets'].items()}
         }
-    
 
     def _adjust_stability_fees(self, current_price: Decimal) -> Dict[str, Any]:
         """Adjust stability fees to incentivize peg restoration"""
         current_fee = Decimal(self.state.variables.get('stability_fee', '0.5'))
-        
+
         if current_price < Decimal('1.0'):
             # Undervalued -> lower fees to encourage minting
             new_fee = max(current_fee * Decimal('0.8'), Decimal('0.1'))
@@ -1715,66 +1827,78 @@ class SmartContract:
             # Overvalued -> raise fees to discourage minting
             new_fee = min(current_fee * Decimal('1.2'), Decimal('5.0'))
             action = "INCREASED"
-        
+
         self.state.variables['stability_fee'] = str(new_fee)
-        
+
         return {
             'action': action,
             'old_fee': str(current_fee),
             'new_fee': str(new_fee),
             'current_price': str(current_price)
         }
-    
 
     def _emergency_stabilization(self, caller: str) -> Dict[str, Any]:
         """Emergency stabilization for critical depegging"""
         if caller != self.state.owner and caller != "system":
-            raise ValueError("Only owner or system can trigger emergency stabilization")
-        
-        current_price = Decimal(self.state.variables.get('price_oracle', '1.0'))
+            raise ValueError(
+                "Only owner or system can trigger emergency stabilization")
+
+        current_price = Decimal(
+    self.state.variables.get(
+        'price_oracle', '1.0'))
         deviation = abs(current_price - Decimal('1.0')) / Decimal('1.0')
-        
+
         if deviation < Decimal('0.05'):  # Less than 5%
             return {
                 'success': False,
                 'reason': 'Deviation not critical enough for emergency measures'
             }
-        
+
         emergency_actions = []
-        
+
         # 1. Aggressive rebase (higher limits)
         old_max_rebase = Decimal('0.10')
         emergency_max_rebase = Decimal('0.25')  # Allow 25% rebase
-        
+
         # Temporarily modify rebase parameters
-        original_supply = Decimal(self.state.variables.get('total_supply', '0'))
-        
+        original_supply = Decimal(
+    self.state.variables.get(
+        'total_supply', '0'))
+
         if current_price > Decimal('1.0'):
             # Emergency supply expansion
-            emergency_expansion = min(deviation * Decimal('0.8'), emergency_max_rebase)
+            emergency_expansion = min(
+    deviation * Decimal('0.8'),
+     emergency_max_rebase)
             new_supply = original_supply * (1 + emergency_expansion)
             action = "EMERGENCY_EXPAND"
         else:
             # Emergency supply contraction
-            emergency_contraction = min(deviation * Decimal('0.8'), emergency_max_rebase)
+            emergency_contraction = min(
+    deviation * Decimal('0.8'),
+     emergency_max_rebase)
             new_supply = original_supply * (1 - emergency_contraction)
             action = "EMERGENCY_CONTRACT"
-        
+
         # Execute emergency rebase
         self._execute_emergency_rebase(new_supply, action)
-        emergency_actions.append(f"{action}: {original_supply} -> {new_supply}")
-        
+        emergency_actions.append(
+    f"{action}: {original_supply} -> {new_supply}")
+
         # 2. Pause minting if severely overvalued
         if current_price > Decimal('1.10'):  # 10% overvalued
             self.state.variables['minting_paused'] = True
             emergency_actions.append("MINTING_PAUSED")
-        
+
         # 3. Adjust liquidation threshold
         if current_price < Decimal('0.90'):  # 10% undervalued
-            old_threshold = self.state.variables.get('liquidation_threshold', '120')
-            self.state.variables['liquidation_threshold'] = '110'  # Lower threshold
-            emergency_actions.append(f"LIQUIDATION_THRESHOLD: {old_threshold} -> 110")
-        
+            old_threshold = self.state.variables.get(
+                'liquidation_threshold', '120')
+            # Lower threshold
+            self.state.variables['liquidation_threshold'] = '110'
+            emergency_actions.append(
+    f"LIQUIDATION_THRESHOLD: {old_threshold} -> 110")
+
         # Record emergency event
         emergency_history = self.state.variables.get('emergency_history', [])
         emergency_event = {
@@ -1786,7 +1910,7 @@ class SmartContract:
         }
         emergency_history.append(emergency_event)
         self.state.variables['emergency_history'] = emergency_history
-        
+
         return {
             'success': True,
             'emergency_triggered': True,
@@ -1796,47 +1920,52 @@ class SmartContract:
             'timestamp': int(time.time())
         }
 
-
     def _execute_emergency_rebase(self, new_supply: Decimal, action: str):
         """Execute emergency rebase without cooldown restrictions"""
         current_supply = Decimal(self.state.variables.get('total_supply', '0'))
-        supply_ratio = new_supply / current_supply if current_supply > 0 else Decimal('1')
-        
+        supply_ratio = new_supply / \
+            current_supply if current_supply > 0 else Decimal('1')
+
         # Update all balances proportionally
         afc_balances = self.state.variables.get('balances', {})
         for address, balance_str in afc_balances.items():
             old_balance = Decimal(balance_str)
             new_balance = old_balance * supply_ratio
             afc_balances[address] = str(new_balance)
-        
+
         # Update supply
         self.state.variables['total_supply'] = str(new_supply)
         self.state.variables['balances'] = afc_balances
         self.state.variables['last_emergency_rebase'] = int(time.time())
 
-    
     def _get_stability_metrics(self) -> Dict[str, Any]:
         """Get comprehensive stability metrics for monitoring"""
-        current_price = Decimal(self.state.variables.get('price_oracle', '1.0'))
+        current_price = Decimal(
+    self.state.variables.get(
+        'price_oracle', '1.0'))
         total_supply = Decimal(self.state.variables.get('total_supply', '0'))
-        
+
         # Calculate metrics
         deviation = abs(current_price - Decimal('1.0')) / Decimal('1.0')
-        
+
         # Collateral metrics
         total_collateral_value = Decimal('0')
-        for asset_name, asset_data in self.state.variables.get('collateral_assets', {}).items():
+        for asset_name, asset_data in self.state.variables.get(
+            'collateral_assets', {}).items():
             deposited = Decimal(asset_data.get('deposited', '0'))
             price = Decimal(asset_data.get('price', '0'))
             total_collateral_value += deposited * price
-        
-        collateralization_ratio = (total_collateral_value / total_supply * 100) if total_supply > 0 else Decimal('0')
-        
+
+        collateralization_ratio = (
+    total_collateral_value /
+    total_supply *
+     100) if total_supply > 0 else Decimal('0')
+
         # Recent activity
         price_history = self.state.variables.get('price_history', [])
         rebase_history = self.state.variables.get('rebase_history', [])
         emergency_history = self.state.variables.get('emergency_history', [])
-        
+
         return {
             'current_price': str(current_price),
             'target_price': '1.0',
@@ -1852,12 +1981,12 @@ class SmartContract:
             'rebases_count': len(rebase_history),
             'emergency_events_count': len(emergency_history)
         }
-    
+
     def _simulate_external_price_feeds(self) -> Dict[str, Any]:
         """Simulate external price feeds for testing (remove in production)"""
         # This simulates getting prices from external sources
         base_price = Decimal('1.0')
-        
+
         # Simulate various market conditions
         scenarios = {
             'stable': (0.999, 1.001),
@@ -1865,16 +1994,18 @@ class SmartContract:
             'major_deviation': (0.95, 1.05),
             'crisis': (0.85, 1.15)
         }
-        
-        # Randomly pick scenario (in production, this would be real price feeds)
+
+        # Randomly pick scenario (in production, this would be real price
+        # feeds)
         scenario = random.choice(list(scenarios.keys()))
         price_range = scenarios[scenario]
-        simulated_price = Decimal(str(random.uniform(price_range[0], price_range[1])))
-        
+        simulated_price = Decimal(
+            str(random.uniform(price_range[0], price_range[1])))
+
         # Update price
         self.state.variables['price_oracle'] = str(simulated_price)
         self.state.variables['last_price_update'] = int(time.time())
-        
+
         return {
             'scenario': scenario,
             'simulated_price': str(simulated_price),
@@ -1882,167 +2013,184 @@ class SmartContract:
             'deviation_from_peg': str(abs(simulated_price - base_price) / base_price * 100)
         }
 
-
-    
-    def _deposit_dinari_collateral(self, args: Dict[str, Any], caller: str, dinari_amount: Decimal) -> str:
+    def _deposit_dinari_collateral(
+        self, args: Dict[str, Any], caller: str, dinari_amount: Decimal) -> str:
         """Deposit DINARI tokens as collateral to mint AFC"""
         if dinari_amount <= 0:
             raise ValueError("Must deposit positive amount of DINARI")
-        
+
         if self.state.variables.get("minting_paused", False):
             raise ValueError("Minting is currently paused")
-        
+
         # Calculate how much AFC can be minted
-        dinari_price = Decimal(self.state.variables["collateral_assets"]["DINARI"]["price"])
-        collateral_ratio = Decimal(self.state.variables["collateral_assets"]["DINARI"]["ratio"]) / 100
-        
+        dinari_price = Decimal(
+    self.state.variables["collateral_assets"]["DINARI"]["price"])
+        collateral_ratio = Decimal(
+    self.state.variables["collateral_assets"]["DINARI"]["ratio"]) / 100
+
         collateral_value_usd = dinari_amount * dinari_price
         max_afc_mint = collateral_value_usd / collateral_ratio
-        
+
         # Update user collateral tracking
         user_collateral = self.state.variables.get('user_collateral', {})
         if caller not in user_collateral:
             user_collateral[caller] = {"DINARI": "0", "afc_debt": "0"}
-        
+
         current_dinari = Decimal(user_collateral[caller]["DINARI"])
         user_collateral[caller]["DINARI"] = str(current_dinari + dinari_amount)
-        
+
         # Update total deposited DINARI
-        total_deposited = Decimal(self.state.variables["collateral_assets"]["DINARI"]["deposited"])
-        self.state.variables["collateral_assets"]["DINARI"]["deposited"] = str(total_deposited + dinari_amount)
-        
+        total_deposited = Decimal(
+    self.state.variables["collateral_assets"]["DINARI"]["deposited"])
+        self.state.variables["collateral_assets"]["DINARI"]["deposited"] = str(
+            total_deposited + dinari_amount)
+
         # Update contract's DINARI balance
         self.state.balance += dinari_amount
-        
+
         self.state.variables['user_collateral'] = user_collateral
-        
+
         return f"Deposited {dinari_amount} DINARI as collateral. Can mint up to {max_afc_mint} AFC"
-    
-    def _afrocoin_mint(self, args: Dict[str, Any], caller: str, value: Decimal) -> str:
+
+    def _afrocoin_mint(self,
+    args: Dict[str,
+    Any],
+    caller: str,
+     value: Decimal) -> str:
         """Mint AFC tokens against DINARI collateral"""
         afc_amount = Decimal(str(args.get('amount', '0')))
-        
+
         if afc_amount <= 0:
             raise ValueError("Amount must be positive")
-        
+
         # Check if user has enough collateral
         user_collateral = self.state.variables.get('user_collateral', {})
         if caller not in user_collateral:
             raise ValueError("No collateral deposited")
-        
+
         dinari_collateral = Decimal(user_collateral[caller]["DINARI"])
         current_afc_debt = Decimal(user_collateral[caller]["afc_debt"])
-        
+
         # Calculate collateral requirements
-        dinari_price = Decimal(self.state.variables["collateral_assets"]["DINARI"]["price"])
-        collateral_ratio = Decimal(self.state.variables["collateral_assets"]["DINARI"]["ratio"]) / 100
-        
+        dinari_price = Decimal(
+    self.state.variables["collateral_assets"]["DINARI"]["price"])
+        collateral_ratio = Decimal(
+    self.state.variables["collateral_assets"]["DINARI"]["ratio"]) / 100
+
         collateral_value = dinari_collateral * dinari_price
         new_total_debt = current_afc_debt + afc_amount
         required_collateral = new_total_debt * collateral_ratio
-        
+
         if collateral_value < required_collateral:
-            raise ValueError(f"Insufficient collateral. Required: ${required_collateral}, Available: ${collateral_value}")
-        
+            raise ValueError(
+    f"Insufficient collateral. Required: ${required_collateral}, Available: ${collateral_value}")
+
         # Update AFC balances
         afc_balances = self.state.variables.get('balances', {})
         current_afc_balance = Decimal(afc_balances.get(caller, '0'))
         afc_balances[caller] = str(current_afc_balance + afc_amount)
-        
+
         # Update user debt
         user_collateral[caller]["afc_debt"] = str(new_total_debt)
-        
+
         # Update total supply
         current_supply = Decimal(self.state.variables.get('total_supply', '0'))
         self.state.variables['total_supply'] = str(current_supply + afc_amount)
         self.state.variables['balances'] = afc_balances
         self.state.variables['user_collateral'] = user_collateral
-        
+
         return f"Minted {afc_amount} AFC against {dinari_collateral} DINARI collateral"
-    
+
     def _afrocoin_burn(self, args: Dict[str, Any], caller: str) -> str:
         """Burn AFC tokens to reduce debt"""
         afc_amount = Decimal(str(args.get('amount', '0')))
-        
+
         afc_balances = self.state.variables.get('balances', {})
         current_afc_balance = Decimal(afc_balances.get(caller, '0'))
-        
+
         if current_afc_balance < afc_amount:
             raise ValueError("Insufficient AFC balance to burn")
-        
+
         # Update AFC balance
         afc_balances[caller] = str(current_afc_balance - afc_amount)
-        
+
         # Reduce debt
         user_collateral = self.state.variables.get('user_collateral', {})
         if caller in user_collateral:
             current_debt = Decimal(user_collateral[caller]["afc_debt"])
-            user_collateral[caller]["afc_debt"] = str(max(Decimal("0"), current_debt - afc_amount))
-        
+            user_collateral[caller]["afc_debt"] = str(
+                max(Decimal("0"), current_debt - afc_amount))
+
         # Update total supply
         current_supply = Decimal(self.state.variables.get('total_supply', '0'))
         self.state.variables['total_supply'] = str(current_supply - afc_amount)
         self.state.variables['balances'] = afc_balances
         self.state.variables['user_collateral'] = user_collateral
-        
+
         return f"Burned {afc_amount} AFC tokens"
-    
+
     def _afrocoin_transfer(self, args: Dict[str, Any], caller: str) -> str:
         """Transfer AFC tokens"""
         to_address = args.get('to')
         amount = Decimal(str(args.get('amount', '0')))
-        
+
         if not to_address:
             raise ValueError("Recipient address required")
-        
+
         afc_balances = self.state.variables.get('balances', {})
         from_balance = Decimal(afc_balances.get(caller, '0'))
-        
+
         if from_balance < amount:
             raise ValueError("Insufficient AFC balance")
-        
+
         # Update balances
         afc_balances[caller] = str(from_balance - amount)
         to_balance = Decimal(afc_balances.get(to_address, '0'))
         afc_balances[to_address] = str(to_balance + amount)
         self.state.variables['balances'] = afc_balances
-        
+
         return f"Transferred {amount} AFC from {caller} to {to_address}"
-    
+
     def _afc_balance_of(self, args: Dict[str, Any]) -> str:
         """Get AFC balance of an address"""
         address = args.get('address')
         if not address:
             raise ValueError("Address required")
-        
+
         afc_balances = self.state.variables.get('balances', {})
         return afc_balances.get(address, '0')
-    
+
     def _get_collateral_ratio(self, args: Dict[str, Any]) -> str:
         """Get collateral ratio for a user"""
         user = args.get('user')
         if not user:
             raise ValueError("User address required")
-        
+
         user_collateral = self.state.variables.get('user_collateral', {})
         if user not in user_collateral:
             return "0"
-        
+
         dinari_amount = Decimal(user_collateral[user]["DINARI"])
         afc_debt = Decimal(user_collateral[user]["afc_debt"])
-        
+
         if afc_debt == 0:
             return "infinite"
-        
-        dinari_price = Decimal(self.state.variables["collateral_assets"]["DINARI"]["price"])
+
+        dinari_price = Decimal(
+    self.state.variables["collateral_assets"]["DINARI"]["price"])
         collateral_value = dinari_amount * dinari_price
         ratio = (collateral_value / afc_debt) * 100
-        
+
         return str(ratio)
-    
-    def _execute_general_function(self, function_name: str, args: Dict[str, Any], caller: str, value: Decimal) -> Any:
+
+    def _execute_general_function(self,
+    function_name: str,
+    args: Dict[str,
+    Any],
+    caller: str,
+     value: Decimal) -> Any:
         """Execute general smart contract functions"""
-        
+
         if function_name == "get_owner":
             return self.state.owner
         elif function_name == "get_dinari_balance":
@@ -2066,11 +2214,12 @@ class SmartContract:
             return f"Ownership transferred to {new_owner}"
         else:
             raise ValueError(f"Unknown function: {function_name}")
-    
-    def _calculate_gas_usage(self, function_name: str, args: Dict[str, Any]) -> int:
+
+    def _calculate_gas_usage(self, function_name: str,
+                             args: Dict[str, Any]) -> int:
         """Calculate gas usage for function execution (simplified)"""
         base_gas = 21000
-        
+
         if function_name in ['transfer_afc', 'approve_afc']:
             return base_gas + 5000
         elif function_name in ['mint_afc', 'burn_afc']:
@@ -2081,14 +2230,14 @@ class SmartContract:
             return base_gas + 20000
         else:
             return base_gas + len(str(args)) * 10
-    
+
     def get_afc_balance(self, address: str) -> Decimal:
         """Get AFC token balance for an address"""
         if self.contract_type == "afrocoin_stablecoin":
             afc_balances = self.state.variables.get('balances', {})
             return Decimal(afc_balances.get(address, '0'))
         return Decimal('0')
-    
+
     def to_dict(self) -> Dict[str, Any]:
         """Convert contract to dictionary for storage"""
         return {
@@ -2105,9 +2254,10 @@ class SmartContract:
                 'last_executed': self.state.last_executed,
                 'is_active': self.state.is_active
             },
-            'execution_history': self.execution_history[-20:]  # Keep last 20 executions
+            # Keep last 20 executions
+            'execution_history': self.execution_history[-20:]
         }
-    
+
     @classmethod
     def from_dict(cls, data: Dict[str, Any]) -> 'SmartContract':
         """Create contract from dictionary"""
@@ -2117,7 +2267,7 @@ class SmartContract:
             owner=data['owner'],
             contract_type=data.get('contract_type', 'general')
         )
-        
+
         # Restore state
         state_data = data['state']
         contract.state = ContractState(
@@ -2128,11 +2278,12 @@ class SmartContract:
             last_executed=state_data['last_executed'],
             is_active=state_data.get('is_active', True)
         )
-        
+
         # Restore execution history
         contract.execution_history = data.get('execution_history', [])
-        
+
         return contract
+
 
 class DinariBlockchain:
     """
@@ -2140,41 +2291,44 @@ class DinariBlockchain:
     Supports smart contracts including Afrocoin stablecoin
     FIXED: Auto-mining, transaction processing, balance persistence, validator management
     """
-    
+
     def __init__(self, db_path: str = "./dinari_data"):
         self.logger = logging.getLogger("Dinari.blockchain")
-        
+
         # Initialize LevelDB
         self.db = DinariLevelDB(db_path)
-        
+
         # Load or create blockchain state
         self.chain_state = self._load_chain_state()
         self.pending_transactions = []
         self.validators = self._load_validators()
         self.dinari_balances = self._load_balances()  # Native DINARI balances
         self.contracts = self._load_contracts()
-        
+
         # Mining control
         self.mining_active = False
         self.mining_thread = None
         self.last_block_time = time.time()  # Track last block creation
-        
+
         # Initialize genesis block if needed
         if self.chain_state["height"] == 0:
             self._create_genesis_block()
-        
+
         # CRITICAL FIX: Ensure we have validators and start mining
         self._ensure_validators()
-        self.start_automatic_mining(15)  # Start mining with 15 second intervals
+        # Start mining with 15 second intervals
+        self.start_automatic_mining(15)
         self.start_automatic_price_updates(120)
         self.start_automatic_dinari_price_updates(180)
         self.start_canonical_price_oracle(60)
         self.start_dual_canonical_oracle(60)
 
-        
-        self.logger.info(f"DinariBlockchain initialized with {len(self.validators)} validators")
-        self.logger.info(f"🚀 Automatic mining: {'ACTIVE' if self.mining_active else 'INACTIVE'}")
-    
+        self.logger.info(
+            f"DinariBlockchain initialized with {len(self.validators)} validators")
+        self.logger.info(
+    f"🚀 Automatic mining: {
+        'ACTIVE' if self.mining_active else 'INACTIVE'}")
+
     def _ensure_validators(self):
         """Ensure we have at least one validator for block production"""
         if len(self.validators) == 0:
@@ -2184,142 +2338,169 @@ class DinariBlockchain:
                 "DTvalidator2b3c4d5e6f7g8h9i0j1k2l3m4n5o6p7q8r9",
                 "DTvalidator3c4d5e6f7g8h9i0j1k2l3m4n5o6p7q8r9s0"
             ]
-            
+
             for validator in default_validators:
                 self.add_validator(validator)
-            
-            self.logger.info(f"✅ Created {len(default_validators)} default validators for block production")
-        
+
+            self.logger.info(
+    f"✅ Created {
+        len(default_validators)} default validators for block production")
+
         # Ensure validators have some DINARI for gas fees
         for validator in self.validators:
-            if validator not in self.dinari_balances or Decimal(self.dinari_balances[validator]) < Decimal("1000"):
-                self.dinari_balances[validator] = "10000"  # Give validators 10,000 DINARI
-                self.logger.info(f"💰 Allocated 10,000 DINARI to validator {validator[:20]}...")
-        
+            if validator not in self.dinari_balances or Decimal(
+                self.dinari_balances[validator]) < Decimal("1000"):
+                # Give validators 10,000 DINARI
+                self.dinari_balances[validator] = "10000"
+                self.logger.info(
+                    f"💰 Allocated 10,000 DINARI to validator {validator[:20]}...")
+
         self._save_balances()
         self._save_validators()
-    
+
     def start_automatic_mining(self, interval: int = 15):
         """Start automatic block mining every interval seconds"""
         if self.mining_active:
             self.logger.warning("Mining already active")
             return
-        
+
         self.mining_active = True
-        
+
         def mine_blocks():
-            self.logger.info(f"🏭 Started automatic mining with {interval}s interval")
+            self.logger.info(
+    f"🏭 Started automatic mining with {interval}s interval")
             consecutive_errors = 0
-            
+
             while self.mining_active:
                 try:
                     time_since_last_block = time.time() - self.last_block_time
-                    
+
                     # Create block if:
                     # 1. We have pending transactions, OR
-                    # 2. Enough time has passed since last block (maintain chain progression)
+                    # 2. Enough time has passed since last block (maintain
+                    # chain progression)
                     should_create_block = (
-                        len(self.pending_transactions) > 0 or 
+                        len(self.pending_transactions) > 0 or
                         time_since_last_block >= interval
                     )
-                    
+
                     if should_create_block and self.validators:
                         # Select validator (simple round-robin)
-                        validator_index = self.chain_state["height"] % len(self.validators)
+                        validator_index = self.chain_state["height"] % len(
+                            self.validators)
                         selected_validator = self.validators[validator_index]
-                        
+
                         # Create block
                         block = self.create_block(selected_validator)
                         if block:
                             consecutive_errors = 0  # Reset error counter on success
-                            self.logger.info(f"✅ Auto-mined block {block.index}")
+                            self.logger.info(
+                                f"✅ Auto-mined block {block.index}")
                             if block.transactions:
-                                self.logger.info(f"   📊 Processed {len(block.transactions)} transactions")
+                                self.logger.info(
+                                    f"   📊 Processed {len(block.transactions)} transactions")
                         else:
                             self.logger.debug("No block created this cycle")
                     else:
                         if not self.validators:
-                            self.logger.warning("No validators available for mining")
+                            self.logger.warning(
+                                "No validators available for mining")
                             self._ensure_validators()  # Try to create validators
-                    
+
                     # Wait for next mining cycle
                     time.sleep(interval)
-                    
+
                 except Exception as e:
                     consecutive_errors += 1
-                    self.logger.error(f"Mining error ({consecutive_errors}): {e}")
-                    
+                    self.logger.error(
+    f"Mining error ({consecutive_errors}): {e}")
+
                     # If too many consecutive errors, try to recover
                     if consecutive_errors >= 3:
-                        self.logger.warning("Too many mining errors, attempting recovery...")
+                        self.logger.warning(
+                            "Too many mining errors, attempting recovery...")
                         self._ensure_validators()
                         consecutive_errors = 0
-                    
+
                     time.sleep(5)  # Wait before retrying
-            
+
             self.logger.info("🛑 Automatic mining stopped")
-        
+
         self.mining_thread = threading.Thread(target=mine_blocks, daemon=True)
         self.mining_thread.start()
-        self.logger.info(f"🚀 Started automatic block mining every {interval} seconds")
+        self.logger.info(
+    f"🚀 Started automatic block mining every {interval} seconds")
 
     def start_automatic_dinari_price_updates(self, interval: int = 180):
         """Start automatic DINARI price updates from external APIs every interval seconds"""
-        
+
         def update_dinari_prices():
-            self.logger.info(f"💰 Started automatic DINARI API price updates every {interval}s")
-            
+            self.logger.info(
+    f"💰 Started automatic DINARI API price updates every {interval}s")
+
             while self.mining_active:
                 try:
                     # Get AFC contract (we'll use it for DINARI functions too)
                     afc_contract = self.contracts.get("afrocoin_stablecoin")
                     if afc_contract:
-                        # Store reference to blockchain in contract for DINARI operations
+                        # Store reference to blockchain in contract for DINARI
+                        # operations
                         afc_contract.blockchain = self
-                        
+
                         # Execute DINARI auto price update
                         result = afc_contract.execute(
-                            'dinari_auto_update_price', 
-                            {}, 
+                            'dinari_auto_update_price',
+                            {},
                             'blockchain_system'
                         )
-                        
+
                         if result.get('success'):
                             price_data = result.get('result', {})
                             new_price = price_data.get('new_price', 'unknown')
-                            deviation = price_data.get('deviation_percent', '0')
-                            
-                            self.logger.info(f"💰 Auto-updated DINARI price: ${new_price}")
-                            
+                            deviation = price_data.get(
+                                'deviation_percent', '0')
+
+                            self.logger.info(
+    f"💰 Auto-updated DINARI price: ${new_price}")
+
                             if float(deviation) > 2.0:
-                                self.logger.warning(f"⚠️ DINARI price deviation: {deviation}%")
+                                self.logger.warning(
+    f"⚠️ DINARI price deviation: {deviation}%")
                                 if price_data.get('auto_stabilized'):
-                                    self.logger.info("🤖 DINARI auto-stabilization triggered")
-                            
+                                    self.logger.info(
+                                        "🤖 DINARI auto-stabilization triggered")
+
                             # Save updated contract state
                             self._save_contracts()
-                        
+
                         else:
-                            self.logger.debug(f"DINARI price update: {result.get('reason', 'No update needed')}")
-                    
+                            self.logger.debug(
+    f"DINARI price update: {
+        result.get(
+            'reason',
+             'No update needed')}")
+
                     # Wait for next update cycle
                     time.sleep(interval)
-                    
+
                 except Exception as e:
                     self.logger.error(f"DINARI auto price update error: {e}")
                     time.sleep(30)
-        
+
         # Start DINARI price update thread
-        dinari_price_thread = threading.Thread(target=update_dinari_prices, daemon=True)
+        dinari_price_thread = threading.Thread(
+    target=update_dinari_prices, daemon=True)
         dinari_price_thread.start()
-        self.logger.info(f"💰 Started automatic DINARI API price updates every {interval} seconds")
+        self.logger.info(
+    f"💰 Started automatic DINARI API price updates every {interval} seconds")
 
     def start_automatic_price_updates(self, interval: int = 120):
         """Start automatic price updates from external APIs every interval seconds"""
-        
+
         def update_prices():
-            self.logger.info(f"🌐 Started automatic API price updates every {interval}s")
-            
+            self.logger.info(
+    f"🌐 Started automatic API price updates every {interval}s")
+
             while self.mining_active:  # Use same flag as mining
                 try:
                     # Get AFC contract
@@ -2327,41 +2508,51 @@ class DinariBlockchain:
                     if afc_contract:
                         # Execute auto price update
                         result = afc_contract.execute(
-                            'auto_update_price', 
-                            {}, 
+                            'auto_update_price',
+                            {},
                             'blockchain_system'
                         )
-                        
+
                         if result.get('success'):
                             price_data = result.get('result', {})
                             new_price = price_data.get('new_price', 'unknown')
-                            deviation = price_data.get('deviation_percent', '0')
-                            
-                            self.logger.info(f"📊 Auto-updated AFC price: ${new_price}")
-                            
-                            if float(deviation) > 2.0:  # More than 2% deviation
-                                self.logger.warning(f"⚠️ Price deviation: {deviation}%")
+                            deviation = price_data.get(
+                                'deviation_percent', '0')
+
+                            self.logger.info(
+    f"📊 Auto-updated AFC price: ${new_price}")
+
+                            if float(
+                                deviation) > 2.0:  # More than 2% deviation
+                                self.logger.warning(
+    f"⚠️ Price deviation: {deviation}%")
                                 if price_data.get('auto_stabilized'):
-                                    self.logger.info("🤖 Auto-stabilization triggered")
-                            
+                                    self.logger.info(
+                                        "🤖 Auto-stabilization triggered")
+
                             # Save updated contract state
                             self._save_contracts()
-                        
+
                         else:
-                            self.logger.debug(f"Price update: {result.get('reason', 'No update needed')}")
-                    
+                            self.logger.debug(
+    f"Price update: {
+        result.get(
+            'reason',
+             'No update needed')}")
+
                     # Wait for next update cycle
                     time.sleep(interval)
-                    
+
                 except Exception as e:
                     self.logger.error(f"Auto price update error: {e}")
                     time.sleep(30)  # Wait before retrying
-        
+
         # Start price update thread
         price_thread = threading.Thread(target=update_prices, daemon=True)
         price_thread.start()
-        self.logger.info(f"🌐 Started automatic API price updates every {interval} seconds")
-    
+        self.logger.info(
+    f"🌐 Started automatic API price updates every {interval} seconds")
+
     def stop_automatic_mining(self):
         """Stop automatic block mining"""
         self.mining_active = False
@@ -2371,36 +2562,43 @@ class DinariBlockchain:
 
     def start_dual_canonical_oracle(self, interval: int = 60):
         """Maintain canonical price oracles for both AFC and DINARI"""
-        
+
         def update_dual_canonical_oracle():
-            self.logger.info(f"🎯 Started dual canonical price oracle (AFC + DINARI) every {interval}s")
-            
+            self.logger.info(
+    f"🎯 Started dual canonical price oracle (AFC + DINARI) every {interval}s")
+
             while self.mining_active:
                 try:
                     afc_contract = self.contracts.get("afrocoin_stablecoin")
                     if afc_contract:
                         afc_contract.blockchain = self
-                        
+
                         # Update canonical AFC price (always $1.00)
-                        afc_result = afc_contract.execute('set_canonical_afc_price', {}, 'protocol_algorithm')
-                        
+                        afc_result = afc_contract.execute(
+    'set_canonical_afc_price', {}, 'protocol_algorithm')
+
                         # Update canonical DINARI price (always $1.00)
-                        dinari_result = afc_contract.execute('set_canonical_dinari_price', {}, 'protocol_algorithm')
-                        
-                        if afc_result.get('success') and dinari_result.get('success'):
-                            self.logger.info("🎯 Canonical prices updated: AFC=$1.00, DINARI=$1.00")
+                        dinari_result = afc_contract.execute(
+    'set_canonical_dinari_price', {}, 'protocol_algorithm')
+
+                        if afc_result.get(
+                            'success') and dinari_result.get('success'):
+                            self.logger.info(
+                                "🎯 Canonical prices updated: AFC=$1.00, DINARI=$1.00")
                             self._save_contracts()
-                    
+
                     time.sleep(interval)
-                    
+
                 except Exception as e:
                     self.logger.error(f"Dual canonical oracle error: {e}")
                     time.sleep(30)
-        
-        dual_oracle_thread = threading.Thread(target=update_dual_canonical_oracle, daemon=True)
+
+        dual_oracle_thread = threading.Thread(
+    target=update_dual_canonical_oracle, daemon=True)
         dual_oracle_thread.start()
-        self.logger.info(f"🎯 Started dual canonical price oracle (AFC + DINARI) every {interval} seconds")
-    
+        self.logger.info(
+    f"🎯 Started dual canonical price oracle (AFC + DINARI) every {interval} seconds")
+
     def _load_chain_state(self) -> dict:
         """Load blockchain state from LevelDB"""
         default_state = {
@@ -2411,72 +2609,77 @@ class DinariBlockchain:
             "contract_count": 0
         }
         return self.db.get_chain_state() or default_state
-    
 
     def start_canonical_price_oracle(self, interval: int = 60):
         """Maintain canonical AFC price oracle for external systems"""
-        
+
         def update_canonical_oracle():
-            self.logger.info(f"🎯 Started canonical AFC price oracle every {interval}s")
-            
+            self.logger.info(
+    f"🎯 Started canonical AFC price oracle every {interval}s")
+
             while self.mining_active:
                 try:
                     afc_contract = self.contracts.get("afrocoin_stablecoin")
                     if afc_contract:
                         afc_contract.blockchain = self
-                        
+
                         # Update canonical price (always $1.00)
-                        result = afc_contract.execute('set_canonical_afc_price', {}, 'protocol_algorithm')
-                        
+                        result = afc_contract.execute(
+    'set_canonical_afc_price', {}, 'protocol_algorithm')
+
                         if result.get('success'):
-                            self.logger.info("🎯 Canonical AFC price updated: $1.00")
+                            self.logger.info(
+                                "🎯 Canonical AFC price updated: $1.00")
                             self._save_contracts()
-                    
+
                     time.sleep(interval)
-                    
+
                 except Exception as e:
                     self.logger.error(f"Canonical oracle error: {e}")
                     time.sleep(30)
-        
-        oracle_thread = threading.Thread(target=update_canonical_oracle, daemon=True)
+
+        oracle_thread = threading.Thread(
+    target=update_canonical_oracle, daemon=True)
         oracle_thread.start()
-        self.logger.info(f"🎯 Started canonical AFC price oracle every {interval} seconds")
-    
+        self.logger.info(
+    f"🎯 Started canonical AFC price oracle every {interval} seconds")
+
     def _save_chain_state(self):
         """Save blockchain state to LevelDB"""
         self.db.store_chain_state(self.chain_state)
         self.logger.debug("Chain state saved to database")
-    
+
     def _load_validators(self) -> List[str]:
         """Load validators list"""
         return self.db.get("validators") or []
-    
+
     def _save_validators(self):
         """Save validators list"""
         self.db.put("validators", self.validators)
-    
+
     def _load_balances(self) -> dict:
         """Load DINARI token balances"""
         return self.db.get("dinari_balances") or {}
-    
+
     def _save_balances(self):
         """Save DINARI token balances"""
         self.db.put("dinari_balances", self.dinari_balances)
         self.logger.debug("DINARI balances saved to database")
-    
+
     def _load_contracts(self) -> Dict[str, SmartContract]:
         """Load smart contracts"""
         contracts_data = self.db.get("contracts") or {}
         contracts = {}
-        
+
         for contract_id, contract_data in contracts_data.items():
             try:
                 contracts[contract_id] = SmartContract.from_dict(contract_data)
             except Exception as e:
-                self.logger.error(f"Failed to load contract {contract_id}: {e}")
-        
+                self.logger.error(
+    f"Failed to load contract {contract_id}: {e}")
+
         return contracts
-    
+
     def _save_contracts(self):
         """Save smart contracts"""
         contracts_data = {}
@@ -2484,7 +2687,7 @@ class DinariBlockchain:
             contracts_data[contract_id] = contract.to_dict()
         self.db.put("contracts", contracts_data)
         self.logger.debug("Contracts saved to database")
-    
+
     def _create_genesis_block(self):
         """Create genesis block with 100M DINARI allocations and deploy Afrocoin contract with 200M AFC"""
         genesis_transactions = [
@@ -2498,7 +2701,7 @@ class DinariBlockchain:
                 data="Main treasury DINARI allocation - 30M tokens"
             ),
             Transaction(
-                from_address="genesis", 
+                from_address="genesis",
                 to_address="DT1sv9m0g077juqa67h64zxzr26k5xu5rcp8c9qvx",  # Validators Fund
                 amount=Decimal("25000000"),  # 25M DINARI
                 gas_price=Decimal("0"),
@@ -2534,11 +2737,12 @@ class DinariBlockchain:
                 data="Reserve fund DINARI allocation - 10M tokens"
             )
         ]
-        
+
         # Verify 100M total
         total_allocated = sum(tx.amount for tx in genesis_transactions)
-        self.logger.info(f"🚀 Total DINARI allocated: {total_allocated} (Expected: 100,000,000)")
-        
+        self.logger.info(
+    f"🚀 Total DINARI allocated: {total_allocated} (Expected: 100,000,000)")
+
         genesis_block = Block(
             index=0,
             transactions=genesis_transactions,
@@ -2546,15 +2750,19 @@ class DinariBlockchain:
             previous_hash="0" * 64,
             validator="genesis"
         )
-        
+
         # Process genesis transactions (distribute DINARI)
         for tx in genesis_transactions:
             if tx.to_address not in self.dinari_balances:
                 self.dinari_balances[tx.to_address] = "0"
             current_balance = Decimal(self.dinari_balances[tx.to_address])
-            self.dinari_balances[tx.to_address] = str(current_balance + tx.amount)
-            self.logger.info(f"Genesis: Allocated {tx.amount} DINARI to {tx.to_address}")
-        
+            self.dinari_balances[tx.to_address] = str(
+                current_balance + tx.amount)
+            self.logger.info(
+    f"Genesis: Allocated {
+        tx.amount} DINARI to {
+            tx.to_address}")
+
         # Deploy Afrocoin stablecoin contract with 200M AFC
         afrocoin_contract = SmartContract(
             contract_id="afrocoin_stablecoin",
@@ -2563,7 +2771,7 @@ class DinariBlockchain:
             contract_type="afrocoin_stablecoin",
             initial_state={
                 "name": "Afrocoin",
-                "symbol": "AFC", 
+                "symbol": "AFC",
                 "decimals": 18,
                 "total_supply": "200000000",  # 200M AFC
                 "balances": {
@@ -2604,11 +2812,11 @@ class DinariBlockchain:
             }
         )
         self.contracts["afrocoin_stablecoin"] = afrocoin_contract
-        
+
         # Store genesis block
         block_hash = genesis_block.get_hash()
         self.db.store_block(block_hash, genesis_block.to_dict())
-        
+
         # Update chain state
         self.chain_state["height"] = 1
         self.chain_state["last_block_hash"] = block_hash
@@ -2616,103 +2824,175 @@ class DinariBlockchain:
         self.chain_state["total_afc_supply"] = "200000000"     # 200M AFC
         self.chain_state["total_transactions"] = len(genesis_transactions)
         self.chain_state["contract_count"] = len(self.contracts)
-        
+
         # Save state
         self._save_chain_state()
         self._save_balances()
         self._save_contracts()
-        
+
         self.logger.info(f"✅ Genesis: 100M DINARI + 200M AFC created")
         self.logger.info("🪙 Afrocoin stablecoin contract deployed")
-    
-    def get_chain_height(self):
-        """Get current blockchain height"""
-        try:
-            height = self.db.get("chain_height")
-            return int(height) if height else 0
-        except:
-            return 0
-    
-    def add_transaction(self, transaction: Transaction) -> bool:
+
+
+def get_chain_height(self):
+    """Get current blockchain height"""
+    try:
+        # Try to get stored height
+        height = self.db.get("chain_height")
+        if height:
+            return int(height.decode())
+
+        # Fallback: count blocks manually
+        max_block = -1
+        for key in self.db.iterator():
+            if key[0].startswith(
+                b"block:") and not key[0].startswith(b"block_index:"):
+                try:
+                    block_data = json.loads(key[1].decode())
+                    block_num = block_data.get('number', -1)
+                    max_block = max(max_block, block_num)
+                except:
+                    continue
+
+        return max_block if max_block >= 0 else 0
+
+    except Exception as e:
+        print(f"Error getting chain height: {e}")
+        return 0
+
+
+def create_index_mapping_for_existing_blocks(self):
+    """One-time method to create index mapping for existing blocks"""
+    try:
+        print("🔄 Creating index mapping for existing blocks...")
+
+        # Get all existing blocks
+        blocks = []
+        for key in self.db.iterator():
+            if key[0].startswith(
+                b"block:") and not key[0].startswith(b"block_index:"):
+                try:
+                    block_data = json.loads(key[1].decode())
+                    blocks.append(
+    (block_data.get(
+        'number',
+        0),
+         block_data.get('hash')))
+                except:
+                    continue
+
+        # Sort by block number
+        blocks.sort(key=lambda x: x[0])
+
+        # Create index mappings
+        for block_number, block_hash in blocks:
+            self.db.put(f"block_index:{block_number}", block_hash)
+            print(f"✅ Mapped block {block_number} -> {block_hash}")
+
+        # Update chain height
+        if blocks:
+            max_height = max(block[0] for block in blocks)
+            self.db.put("chain_height", str(max_height))
+            print(f"✅ Set chain height to {max_height}")
+
+        print(f"🎯 Index mapping complete for {len(blocks)} blocks")
+
+    except Exception as e:
+        print(f"❌ Error creating index mapping: {e}")
+
+
+def add_transaction(self, transaction: Transaction) -> bool:
         """Add transaction to pending pool with enhanced validation"""
         try:
             # Enhanced validation
             if not self._validate_transaction(transaction):
                 return False
-            
+
             self.pending_transactions.append(transaction)
-            
+
             # Store transaction in database
             tx_hash = transaction.get_hash()
             self.db.store_transaction(tx_hash, transaction.to_dict())
-            
-            self.logger.info(f"✅ Transaction added to mempool: {tx_hash[:16]}...")
+
+            self.logger.info(
+                f"✅ Transaction added to mempool: {tx_hash[:16]}...")
             self.logger.info(f"   From: {transaction.from_address[:20]}...")
             self.logger.info(f"   To: {transaction.to_address[:20]}...")
             self.logger.info(f"   Amount: {transaction.amount} DINARI")
-            
+
             return True
-            
+
         except Exception as e:
             self.logger.error(f"Failed to add transaction: {e}")
             return False
-    
-    def get_block_by_index(self, block_number):
-        """NEW METHOD: Get block by index number"""
-        try:
-            # Get hash from index
-            block_hash = self.db.get(f"block_index:{block_number}")
-            if not block_hash:
-                return None
-                
+
+
+def get_block_by_index(self, block_number):
+    """Get block by index number"""
+    try:
+        # First try to get hash from index mapping
+        block_hash = self.db.get(f"block_index:{block_number}")
+        if block_hash:
             # Get block data by hash
-            block_data = self.db.get(f"block:{block_hash}")
-            return block_data
-            
-        except Exception as e:
-            print(f"Error getting block {block_number}: {e}")
-            return None
-    
-    def add_block_to_chain(self, block):
+            return self.db.get(f"block:{block_hash}")
+
+        # Fallback: if no index mapping exists, try to find block by iterating
+        # This is temporary for existing blocks without index mapping
+        for key in self.db.iterator():
+            if key[0].startswith(
+                b"block:") and not key[0].startswith(b"block_index:"):
+                block_data = json.loads(key[1].decode())
+                if block_data.get('number') == block_number:
+                    return block_data
+
+        return None
+
+    except Exception as e:
+        print(f"Error getting block {block_number}: {e}")
+        return None
+
+
+def add_block_to_chain(self, block):
         """Modified method to store blocks by both hash AND index"""
-        
+
         # Get block data
         block_hash = block.get('hash') or block.hash
-        block_number = len(self.get_all_blocks())  # Or however you calculate block number
-        
+        # Or however you calculate block number
+        block_number = len(self.get_all_blocks())
+
         # Store by hash (existing method)
         self.db.put(f"block:{block_hash}", block_data)
-        
+
         # NEW: Also store by index for easy retrieval
         self.db.put(f"block_index:{block_number}", block_hash)
-        
+
         # Update chain height
         self.db.put("chain_height", str(block_number))
-        
+
         print(f"✅ Block {block_number} stored with hash {block_hash}")
-        
+
         def get_recent_blocks(self, limit: int = 15) -> List[dict]:
             """Get recent blocks efficiently"""
             try:
                 blocks = []
                 current_height = self.chain_state.get("height", 0)
-                
+
                 # Get blocks from newest to oldest
                 start_index = max(0, current_height - limit)
-                
+
                 for i in range(current_height, start_index - 1, -1):
                     block = self.db.get_block_by_index(i)
                     if block:
                         # Ensure block has index number
                         block['number'] = i
                         blocks.append(block)
-                        
+
                 return blocks
-                
+
             except Exception as e:
                 self.logger.error(f"Failed to get recent blocks: {e}")
                 return []
-            
+
     def get_all_transactions_in_recent_blocks(self, block_limit: int = 20) -> List[dict]:
         """Get all transactions from recent blocks"""
         try:
