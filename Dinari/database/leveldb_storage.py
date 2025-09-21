@@ -114,6 +114,72 @@ class DinariLevelDB:
         self.put(f"block:{block_hash}", block_data)
         self.logger.debug(f"Block {block_hash} stored")
     
+    def store_block_with_index(self, block_hash: str, block_data: dict, block_index: int):
+        """Store block by both hash and index for easy retrieval"""
+        try:
+            # Store by hash (existing method)
+            self.store_block(block_hash, block_data)
+            
+            # Also store index-to-hash mapping (new)
+            self.put(f"block_index:{block_index}", block_hash)
+            
+            # Store hash-to-index mapping for reverse lookup
+            self.put(f"hash_to_index:{block_hash}", block_index)
+            
+            return True
+            
+        except Exception as e:
+            print(f"Failed to store block {block_index}: {e}")
+            return False
+    
+    def get_block_by_index(self, block_index: int) -> Optional[Dict[str, Any]]:
+        """Get block by its index number"""
+        try:
+            # Get hash from index
+            block_hash = self.get(f"block_index:{block_index}")
+            if not block_hash:
+                return None
+            
+            # Get block data using existing method
+            return self.get_block(block_hash)
+            
+        except Exception as e:
+            print(f"Failed to get block {block_index}: {e}")
+            return None
+        
+    def get_block_hash_by_index(self, block_index: int) -> Optional[str]:
+        """Get block hash by index"""
+        try:
+            return self.get(f"block_index:{block_index}")
+        except Exception as e:
+            print(f"Failed to get hash for block {block_index}: {e}")
+            return None
+    
+    def get_block_index_by_hash(self, block_hash: str) -> Optional[int]:
+        """Get block index by hash"""
+        try:
+            return self.get(f"hash_to_index:{block_hash}")
+        except Exception as e:
+            print(f"Failed to get index for hash {block_hash}: {e}")
+            return None
+    
+    def get_recent_block_hashes(self, limit: int = 15, current_height: int = 0) -> List[str]:
+        """Get recent block hashes in order"""
+        hashes = []
+        try:
+            start_index = max(0, current_height - limit)
+            
+            for i in range(current_height, start_index - 1, -1):  # Newest first
+                block_hash = self.get_block_hash_by_index(i)
+                if block_hash:
+                    hashes.append(block_hash)
+                    
+            return hashes
+            
+        except Exception as e:
+            print(f"Failed to get recent block hashes: {e}")
+            return []
+
     def get_block(self, block_hash: str) -> Optional[Dict[str, Any]]:
         """Retrieve a block by hash"""
         return self.get(f"block:{block_hash}")

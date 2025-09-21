@@ -2649,6 +2649,90 @@ class DinariBlockchain:
             self.logger.error(f"Failed to add transaction: {e}")
             return False
     
+    def get_block_by_index(self, block_index: int) -> Optional[dict]:
+        """Get block by index - calls database layer"""
+        try:
+            return self.db.get_block_by_index(block_index)
+        except Exception as e:
+            self.logger.error(f"Failed to get block {block_index}: {e}")
+            return None
+    
+    def get_recent_blocks(self, limit: int = 15) -> List[dict]:
+        """Get recent blocks efficiently"""
+        try:
+            blocks = []
+            current_height = self.chain_state.get("height", 0)
+            
+            # Get blocks from newest to oldest
+            start_index = max(0, current_height - limit)
+            
+            for i in range(current_height, start_index - 1, -1):
+                block = self.db.get_block_by_index(i)
+                if block:
+                    # Ensure block has index number
+                    block['number'] = i
+                    blocks.append(block)
+                    
+            return blocks
+            
+        except Exception as e:
+            self.logger.error(f"Failed to get recent blocks: {e}")
+            return []
+        
+    def get_all_transactions_in_recent_blocks(self, block_limit: int = 20) -> List[dict]:
+        """Get all transactions from recent blocks"""
+        try:
+            transactions = []
+            recent_blocks = self.get_recent_blocks(block_limit)
+            
+            for block in recent_blocks:
+                block_number = block.get('number', 0)
+                block_hash = block.get('hash', '')
+                block_timestamp = block.get('timestamp', 0)
+                block_transactions = block.get('transactions', [])
+                
+                for tx in block_transactions:
+                    # Add block context to transaction
+                    tx_with_context = tx.copy()
+                    tx_with_context['block_number'] = block_number
+                    tx_with_context['block_hash'] = block_hash
+                    tx_with_context['block_timestamp'] = block_timestamp
+                    transactions.append(tx_with_context)
+                    
+            return transactions
+            
+        except Exception as e:
+            self.logger.error(f"Failed to get transactions from recent blocks: {e}")
+            return []
+        
+    def get_transaction_by_hash(self, tx_hash: str) -> Optional[dict]:
+        """Get transaction by hash - searches through blocks"""
+        try:
+            # First try direct lookup if you store transactions separately
+            tx = self.db.get_transaction(tx_hash)
+            if tx:
+                return tx
+            
+            # Otherwise search through recent blocks
+            recent_blocks = self.get_recent_blocks(50)  # Search last 50 blocks
+            
+            for block in recent_blocks:
+                block_transactions = block.get('transactions', [])
+                for tx in block_transactions:
+                    if tx.get('hash') == tx_hash or tx.get('transaction_hash') == tx_hash:
+                        # Add block context
+                        tx['block_number'] = block.get('number', 0)
+                        tx['block_hash'] = block.get('hash', '')
+                        tx['block_timestamp'] = block.get('timestamp', 0)
+                        return tx
+            
+            return None
+            
+        except Exception as e:
+            self.logger.error(f"Failed to get transaction {tx_hash}: {e}")
+            return None
+
+
     def _validate_transaction(self, tx: Transaction) -> bool:
         """Enhanced transaction validation"""
         try:
