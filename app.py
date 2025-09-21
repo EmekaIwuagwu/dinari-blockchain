@@ -229,57 +229,37 @@ def handle_dinari_getTransaction(params):
 
 
 def handle_dinari_getRecentBlocks(params):
-    """Get recent blocks from LevelDB"""
+    """Get recent blocks - FIXED to return array"""
     try:
-        limit = int(params[0]) if params and len(params) > 0 else 15
-        limit = min(limit, 50)  # Max 50 blocks
+        limit = int(params[0]) if params and len(params) > 0 else 10
+        limit = min(limit, 50)
         
         if not blockchain:
             return []
         
-        blocks = []
+        # Get recent blocks from blockchain
+        recent_blocks = blockchain.get_recent_blocks(limit)
         
-        # Get current chain height
-        chain_height = blockchain.get_chain_height()
-        if chain_height == 0:
-            return []
+        # Format each block for frontend
+        formatted_blocks = []
+        for block in recent_blocks:
+            block_info = {
+                "number": block.get('number', block.get('index', 0)),
+                "hash": block.get('hash', ''),
+                "timestamp": block.get('timestamp', 0),
+                "transaction_count": len(block.get('transactions', [])),
+                "gas_used": str(block.get('gas_used', 0)),
+                "validator": block.get('validator', ''),
+                "size": len(json.dumps(block))
+            }
+            formatted_blocks.append(block_info)
         
-        # Get recent blocks (newest first)
-        start_block = max(0, chain_height - limit + 1)
-        
-        for block_num in range(chain_height, start_block - 1, -1):
-            try:
-                block_data = blockchain.get_block_by_index(block_num)
-                if not block_data:
-                    continue
-                
-                # Count transactions
-                transactions = block_data.get('transactions', [])
-                tx_count = len(transactions)
-                total_gas = sum(int(tx.get('gas_limit', 21000)) for tx in transactions)
-                
-                block_info = {
-                    "number": block_num,
-                    "hash": block_data.get('hash', f'0x{block_num:064x}'),
-                    "timestamp": block_data.get('timestamp', int(time.time())),
-                    "transaction_count": tx_count,
-                    "gas_used": str(total_gas),
-                    "validator": block_data.get('validator', 'system'),
-                    "size": len(json.dumps(block_data))
-                }
-                
-                blocks.append(block_info)
-                
-            except Exception as e:
-                print(f"Error processing block {block_num}: {e}")
-                continue
-        
-        return blocks
+        print(f"Returning {len(formatted_blocks)} blocks to frontend")
+        return formatted_blocks  # Return ARRAY, not single object
         
     except Exception as e:
-        print(f"Error in handle_dinari_getRecentBlocks: {e}")
-        return []
-
+        print(f"Error in getRecentBlocks: {e}")
+        return []  # Return empty array on error
 
 
 def handle_dinari_getRecentTransactions(params):
