@@ -311,41 +311,41 @@ def handle_dinari_getRecentTransactions(params):
         return {"success": False, "error": str(e)}
 
 def handle_dinari_getRecentBlocks(params):
-    """Get recent blocks - ULTRA SIMPLE VERSION"""
+    """Get recent blocks - REAL DATA VERSION"""
     try:
         limit = int(params[0]) if params and len(params) > 0 else 10
         
-        # Instead of complex database lookups, create blocks from chain state
         if not blockchain:
             return {"success": False, "error": "Blockchain not available"}
         
-        # Get basic chain info that we know works
-        chain_height = blockchain.chain_state.get("height", 0)
+        # Try to get real blocks first
+        real_blocks = blockchain.get_recent_blocks(limit)
         
-        # Create simple block data
-        blocks = []
-        start_block = max(0, chain_height - limit)
-        
-        for i in range(chain_height - 1, start_block - 1, -1):
-            # Create basic block info without complex database calls
-            block_info = {
-                "number": i,
-                "hash": f"0x{i:064x}",  # Simple hash based on block number
-                "timestamp": int(time.time()) - ((chain_height - i) * 15),  # Estimate timestamps
-                "transaction_count": 5 if i == 0 else 0,  # Genesis block has 5, others 0
-                "gas_used": "105000" if i == 0 else "0",
-                "validator": "genesis" if i == 0 else f"validator_{i % 3}",
-                "size": 1760 if i == 0 else 512
+        if real_blocks:
+            # Format real blocks for frontend
+            formatted_blocks = []
+            for block in real_blocks:
+                block_info = {
+                    "number": block.get('number', block.get('index', 0)),
+                    "hash": str(block.get('hash', f'0x{block.get("number", 0):064x}')),
+                    "timestamp": int(block.get('timestamp', time.time())),
+                    "transaction_count": len(block.get('transactions', [])),
+                    "gas_used": str(block.get('gas_used', 0)),
+                    "validator": str(block.get('validator', 'system')),
+                    "size": len(str(block)) if block else 512
+                }
+                formatted_blocks.append(block_info)
+            
+            return {
+                "success": True,
+                "data": {
+                    "blocks": formatted_blocks,
+                    "total": len(formatted_blocks)
+                }
             }
-            blocks.append(block_info)
-        
-        return {
-            "success": True,
-            "data": {
-                "blocks": blocks,
-                "total": len(blocks)
-            }
-        }
+        else:
+            # Fallback to simplified data if no real blocks found
+            return {"success": False, "error": "No blocks found in database"}
         
     except Exception as e:
         print(f"Error in getRecentBlocks: {e}")

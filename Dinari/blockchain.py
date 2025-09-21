@@ -1136,49 +1136,72 @@ class DinariBlockchain:
             self.logger.info(f"Validator added: {validator_address}")
 
     def get_recent_blocks(self, limit: int = 15) -> List[dict]:
-        """Get recent blocks"""
+        """Get recent blocks from database - FIXED VERSION"""
         try:
             blocks = []
             current_height = self.chain_state.get("height", 0)
             
-            start_index = max(0, current_height - limit)
-            
-            for i in range(current_height - 1, start_index - 1, -1):
-                block = self.get_block_by_index(i)
-                if block:
-                    block['number'] = i
-                    blocks.append(block)
+            # Get blocks by trying direct database access
+            for i in range(current_height - 1, max(0, current_height - limit - 1), -1):
+                try:
+                    # Try multiple key patterns to find blocks
+                    block_data = None
+                    
+                    # Try by index mapping first
+                    block_hash = self.db.get(f"block_index:{i}")
+                    if block_hash:
+                        block_data = self.db.get(f"block:{block_hash}")
+                    
+                    # Try direct key patterns if index mapping doesn't work
+                    if not block_data:
+                        possible_keys = [f"block_{i}", f"block:{i}", str(i)]
+                        for key in possible_keys:
+                            block_data = self.db.get(key)
+                            if block_data:
+                                break
+                    
+                    if block_data:
+                        # Ensure block has proper index number
+                        if isinstance(block_data, dict):
+                            block_data['number'] = i
+                            blocks.append(block_data)
+                        
+                except Exception as e:
+                    print(f"Error getting block {i}: {e}")
+                    continue
             
             return blocks
             
         except Exception as e:
-            self.logger.error(f"Failed to get recent blocks: {e}")
+            print(f"Error in get_recent_blocks: {e}")
             return []
 
     def get_recent_transactions(self, limit: int = 20) -> List[dict]:
-        """Get recent transactions from blocks"""
+        """Get recent transactions from recent blocks"""
         try:
             transactions = []
-            recent_blocks = self.get_recent_blocks(10)
+            recent_blocks = self.get_recent_blocks(10)  # Get last 10 blocks
             
             for block in recent_blocks:
                 if len(transactions) >= limit:
                     break
                     
                 block_transactions = block.get('transactions', [])
-                for tx in reversed(block_transactions):
+                for tx in block_transactions:
                     if len(transactions) >= limit:
                         break
                     
-                    tx_with_context = tx.copy()
-                    tx_with_context['block_number'] = block.get('number', block.get('index', 0))
-                    tx_with_context['block_hash'] = block.get('hash', '')
-                    transactions.append(tx_with_context)
+                    # Add block context to transaction
+                    if isinstance(tx, dict):
+                        tx_with_context = tx.copy()
+                        tx_with_context['block_number'] = block.get('number', block.get('index', 0))
+                        tx_with_context['block_hash'] = block.get('hash', '')
+                        transactions.append(tx_with_context)
             
             return transactions
             
         except Exception as e:
-            self.logger.error(f"Failed to get recent transactions: {e}")
+            print(f"Error in get_recent_transactions: {e}")
             return []
 
     def get_transaction_by_hash(self, tx_hash: str) -> Optional[dict]:
