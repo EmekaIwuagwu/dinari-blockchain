@@ -353,40 +353,59 @@ def handle_dinari_getRecentBlocks(params):
 
 
 def handle_dinari_getRecentTransactions(params):
-    """Get recent transactions - SIMPLIFIED VERSION"""
+    """Get recent transactions from LevelDB blocks - REAL DATA VERSION"""
     try:
         limit = int(params[0]) if params and len(params) > 0 else 20
         
         if not blockchain:
             return {"success": False, "error": "Blockchain not available"}
         
-        # Create simple transaction data
         transactions = []
         
-        # Create some genesis transactions (from your actual genesis block)
-        genesis_addresses = [
-            "DT1qyfe883hey6jrgj2xvk9a3klghvz9z9way2nxvu",
-            "DT1sv9m0g077juqa67h64zxzr26k5xu5rcp8c9qvx", 
-            "DT1cqgze3fqpw0dqh9j8l2dqqyr89c0q5c2jdpg8x",
-            "DT1xz2f8l8lh8vqw3r6n4s2k7j9p1d5g8h3m6c4v7",
-            "DT1a7b8c9d0e1f2g3h4i5j6k7l8m9n0o1p2q3r4s5"
-        ]
+        # Get current chain height (same pattern as your working blocks handler)
+        chain_height = blockchain.get_chain_height()
+        if chain_height == 0:
+            return {"success": True, "data": {"transactions": [], "total": 0}}
         
-        amounts = ["30000000", "25000000", "20000000", "15000000", "10000000"]
+        # Look through recent blocks to find transactions (newest first)
+        start_block = max(0, chain_height - 20)  # Check last 20 blocks
         
-        for i in range(min(limit, 5)):  # Show up to 5 genesis transactions
-            tx_info = {
-                "hash": f"0x{i:064x}",
-                "block_number": 0,
-                "from_address": "genesis",
-                "to_address": genesis_addresses[i],
-                "amount": amounts[i],
-                "gas_limit": "21000",
-                "gas_price": "0",
-                "timestamp": int(time.time()) - 3600,  # 1 hour ago
-                "status": "success"
-            }
-            transactions.append(tx_info)
+        for block_num in range(chain_height, start_block - 1, -1):
+            if len(transactions) >= limit:
+                break
+                
+            try:
+                # Use the same method as your working blocks handler
+                block_data = blockchain.get_block_by_index(block_num)
+                if not block_data:
+                    continue
+                
+                # Extract transactions from this block
+                block_transactions = block_data.get('transactions', [])
+                
+                for tx in block_transactions:
+                    if len(transactions) >= limit:
+                        break
+                    
+                    # Build transaction info from real data
+                    tx_info = {
+                        "hash": tx.get('hash', tx.get('id', f"0x{block_num}_{len(transactions):08x}")),
+                        "block_number": block_num,
+                        "from_address": tx.get('from', tx.get('sender', tx.get('from_address', 'unknown'))),
+                        "to_address": tx.get('to', tx.get('recipient', tx.get('to_address', 'unknown'))),
+                        "amount": str(tx.get('amount', tx.get('value', 0))),
+                        "gas_limit": str(tx.get('gas_limit', tx.get('gas', 21000))),
+                        "gas_price": str(tx.get('gas_price', 0)),
+                        "timestamp": block_data.get('timestamp', int(time.time())),
+                        "status": tx.get('status', 'success')
+                    }
+                    transactions.append(tx_info)
+                
+            except Exception as e:
+                print(f"Error processing block {block_num} transactions: {e}")
+                continue
+        
+        print(f"🎯 Found {len(transactions)} real transactions from LevelDB")
         
         return {
             "success": True,
