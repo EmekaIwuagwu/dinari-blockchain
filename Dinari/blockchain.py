@@ -59,13 +59,7 @@ class Transaction:
 
     def get_hash(self) -> str:
         """Calculate transaction hash"""
-        tx_string = f"{
-    self.from_address}{
-        self.to_address}{
-            self.amount}{
-                self.nonce}{
-                    self.timestamp}{
-                        self.data}"
+        tx_string = f"{self.from_address}{self.to_address}{self.amount}{self.nonce}{self.timestamp}{self.data}"
         return hashlib.sha256(tx_string.encode()).hexdigest()
 
 
