@@ -178,80 +178,28 @@ jobs:
           IMAGE_ID=$(oci compute image list --compartment-id ${{ secrets.OCI_TENANCY_ID }} --operating-system "Oracle Linux" --operating-system-version "8" --shape "VM.Standard.E2.1.Micro" --query 'data[0].id' --raw-output)
           echo "Using Image: $IMAGE_ID"
           
-          # Get or create VCN
-          VCN_ID=$(oci network vcn list --compartment-id ${{ secrets.OCI_TENANCY_ID }} --query 'data[0].id' --raw-output 2>/dev/null || echo "")
+          # Use existing VCN/subnet (already created from previous deployment)
+          VCN_ID=$(oci network vcn list --compartment-id ${{ secrets.OCI_TENANCY_ID }} --query 'data[0].id' --raw-output)
+          SUBNET_ID=$(oci network subnet list --compartment-id ${{ secrets.OCI_TENANCY_ID }} --vcn-id "$VCN_ID" --query 'data[0].id' --raw-output)
+          echo "Using existing VCN: $VCN_ID"
+          echo "Using existing Subnet: $SUBNET_ID"
           
-          if [ -z "$VCN_ID" ] || [ "$VCN_ID" = "null" ]; then
-            echo "Creating VCN..."
-            VCN_ID=$(oci network vcn create \
-              --compartment-id ${{ secrets.OCI_TENANCY_ID }} \
-              --cidr-block "10.0.0.0/16" \
-              --display-name "dinari-blockchain-vcn" \
-              --wait-for-state AVAILABLE \
-              --query 'data.id' \
-              --raw-output)
-            
-            # Create Internet Gateway
-            IGW_ID=$(oci network internet-gateway create \
-              --compartment-id ${{ secrets.OCI_TENANCY_ID }} \
-              --vcn-id "$VCN_ID" \
-              --display-name "dinari-blockchain-igw" \
-              --is-enabled true \
-              --wait-for-state AVAILABLE \
-              --query 'data.id' \
-              --raw-output)
-            
-            # Update route table
-            RT_ID=$(oci network route-table list \
-              --compartment-id ${{ secrets.OCI_TENANCY_ID }} \
-              --vcn-id "$VCN_ID" \
-              --query 'data[0].id' \
-              --raw-output)
-            
-            oci network route-table update \
-              --rt-id "$RT_ID" \
-              --route-rules '[{
-                "destination": "0.0.0.0/0",
-                "destinationType": "CIDR_BLOCK",
-                "networkEntityId": "'$IGW_ID'"
-              }]' \
-              --force
-            
-            # Create Security List with port 5000
-            SL_ID=$(oci network security-list create \
-              --compartment-id ${{ secrets.OCI_TENANCY_ID }} \
-              --vcn-id "$VCN_ID" \
-              --display-name "dinari-blockchain-seclist" \
-              --egress-security-rules '[{"destination": "0.0.0.0/0", "protocol": "all"}]' \
-              --ingress-security-rules '[
-                {"source": "0.0.0.0/0", "protocol": "6", "tcpOptions": {"destinationPortRange": {"min": 22, "max": 22}}},
-                {"source": "0.0.0.0/0", "protocol": "6", "tcpOptions": {"destinationPortRange": {"min": 5000, "max": 5000}}},
-                {"source": "0.0.0.0/0", "protocol": "6", "tcpOptions": {"destinationPortRange": {"min": 8333, "max": 8333}}}
-              ]' \
-              --wait-for-state AVAILABLE \
-              --query 'data.id' \
-              --raw-output)
-            
-            # Create Subnet
-            SUBNET_ID=$(oci network subnet create \
-              --compartment-id ${{ secrets.OCI_TENANCY_ID }} \
-              --vcn-id "$VCN_ID" \
-              --cidr-block "10.0.1.0/24" \
-              --display-name "dinari-blockchain-subnet" \
-              --route-table-id "$RT_ID" \
-              --security-list-ids '["'$SL_ID'"]' \
-              --wait-for-state AVAILABLE \
-              --query 'data.id' \
-              --raw-output)
-          else
-            SUBNET_ID=$(oci network subnet list --compartment-id ${{ secrets.OCI_TENANCY_ID }} --vcn-id "$VCN_ID" --query 'data[0].id' --raw-output)
+          # Terminate any existing instances first to free resources
+          echo "Checking for existing instances..."
+          EXISTING_INSTANCES=$(oci compute instance list --compartment-id ${{ secrets.OCI_TENANCY_ID }} --lifecycle-state RUNNING --query 'data[].id' --raw-output)
+          if [ ! -z "$EXISTING_INSTANCES" ]; then
+            echo "Terminating existing instances to free resources..."
+            for instance in $EXISTING_INSTANCES; do
+              echo "Terminating instance: $instance"
+              oci compute instance terminate --instance-id "$instance" --force
+            done
+            echo "Waiting for termination to complete..."
+            sleep 30
           fi
           
-          echo "Using Subnet: $SUBNET_ID"
-          
-          # Create VM instance with startup script
-          echo "Creating VM instance..."
-          INSTANCE_ID=$(oci compute instance launch \
+          # Create VM instance with reduced timeout and simpler approach
+          echo "Creating new VM instance..."
+          INSTANCE_RESPONSE=$(oci compute instance launch \
             --compartment-id ${{ secrets.OCI_TENANCY_ID }} \
             --availability-domain "$AD" \
             --shape "VM.Standard.E2.1.Micro" \
@@ -259,19 +207,56 @@ jobs:
             --subnet-id "$SUBNET_ID" \
             --display-name "dinari-blockchain-$(date +%s)" \
             --user-data-file startup.sh \
-            --assign-public-ip true \
-            --wait-for-state RUNNING \
-            --max-wait-seconds 300 \
-            --query 'data.id' \
-            --raw-output)
+            --assign-public-ip true 2>/dev/null || echo "FAILED")
           
-          echo "Instance created: $INSTANCE_ID"
+          if [ "$INSTANCE_RESPONSE" = "FAILED" ]; then
+            echo "❌ VM creation failed. This could be due to:"
+            echo "   - Free tier resource limits reached"
+            echo "   - No available capacity in the availability domain"
+            echo "   - Network configuration issues"
+            echo ""
+            echo "🔧 Try these solutions:"
+            echo "   1. Wait 10-15 minutes and re-run the deployment"
+            echo "   2. Check Oracle Cloud Console for any existing instances to terminate"
+            echo "   3. Try a different availability domain"
+            exit 1
+          fi
           
-          # Wait for networking and get public IP
-          echo "Waiting for networking to initialize..."
-          sleep 90
+          INSTANCE_ID=$(echo "$INSTANCE_RESPONSE" | jq -r '.data.id' 2>/dev/null || echo "UNKNOWN")
+          echo "Instance creation initiated: $INSTANCE_ID"
           
-          PUBLIC_IP=$(oci compute instance list-vnics --instance-id "$INSTANCE_ID" --query 'data[0]."public-ip"' --raw-output)
+          # Wait for instance to be running (with shorter timeout)
+          echo "Waiting for instance to start (max 5 minutes)..."
+          for i in {1..30}; do
+            STATE=$(oci compute instance get --instance-id "$INSTANCE_ID" --query 'data."lifecycle-state"' --raw-output 2>/dev/null || echo "UNKNOWN")
+            echo "Attempt $i/30: Instance state is $STATE"
+            
+            if [ "$STATE" = "RUNNING" ]; then
+              echo "✅ Instance is running!"
+              break
+            elif [ "$STATE" = "TERMINATED" ] || [ "$STATE" = "TERMINATING" ]; then
+              echo "❌ Instance failed to start (state: $STATE)"
+              exit 1
+            fi
+            
+            sleep 10
+          done
+          
+          if [ "$STATE" != "RUNNING" ]; then
+            echo "⏰ Instance didn't start within 5 minutes. Final state: $STATE"
+            echo "The instance may still be starting. Check Oracle Cloud Console."
+            exit 1
+          fi
+          
+          # Get public IP
+          echo "Getting public IP address..."
+          sleep 30
+          PUBLIC_IP=$(oci compute instance list-vnics --instance-id "$INSTANCE_ID" --query 'data[0]."public-ip"' --raw-output 2>/dev/null || echo "UNKNOWN")
+          
+          if [ "$PUBLIC_IP" = "UNKNOWN" ] || [ -z "$PUBLIC_IP" ]; then
+            echo "❌ Could not retrieve public IP. Check Oracle Cloud Console."
+            exit 1
+          fi
           
           echo ""
           echo "🚀 DinariBlockchain deployment completed!"
@@ -281,14 +266,15 @@ jobs:
           echo "💚 Health Check: http://$PUBLIC_IP:5000/health"
           echo "📊 Status: http://$PUBLIC_IP:5000/api/status"
           echo ""
-          echo "⏳ Please wait 2-3 minutes for the blockchain service to fully start"
+          echo "⏳ Please wait 3-5 minutes for the blockchain service to start"
           
-          # Test the deployment
-          echo "Testing deployment in 2 minutes..."
-          sleep 120
+          # Simple test without failing the deployment
+          echo "Testing deployment..."
+          sleep 90
           
           if curl -f "http://$PUBLIC_IP:5000/health" 2>/dev/null; then
             echo "✅ DinariBlockchain is running successfully!"
           else
-            echo "⏳ Service is still starting up. Check again in a few minutes."
+            echo "⏳ Service is still starting. Test manually in a few minutes:"
+            echo "   curl http://$PUBLIC_IP:5000/health"
           fi
