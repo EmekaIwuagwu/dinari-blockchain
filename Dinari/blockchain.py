@@ -60,7 +60,7 @@ class Transaction:
     def get_hash(self) -> str:
         """Calculate transaction hash"""
         tx_string = f"{self.from_address}{self.to_address}{self.amount}{self.nonce}{self.timestamp}{self.data}"
-        return hashlib.sha256(tx_string.encode()).hexdigest()
+        return "DTx" + hashlib.sha256(tx_string.encode()).hexdigest()
 
 
 @dataclass
@@ -102,7 +102,7 @@ class Block:
             "nonce": self.nonce,
             "validator": self.validator
         }, sort_keys=True)
-        return hashlib.sha256(block_string.encode()).hexdigest()
+        return "DTx" + hashlib.sha256(block_string.encode()).hexdigest()
 
 
 @dataclass
@@ -961,6 +961,11 @@ class DinariBlockchain:
         
         # Store by index for easy access
         self.db.put(f"block_index:0", block_hash)
+        # STORE ALL GENESIS TRANSACTIONS PERMANENTLY - ADD THIS BLOCK  
+        for tx in genesis_transactions:
+            tx_dict = tx.to_dict()
+            tx_dict['hash'] = tx.get_hash()  # Ensure hash is included
+            self.store_transaction_permanently(tx_dict, 0)
 
         # Update chain state
         self.chain_state["height"] = 1
@@ -1163,6 +1168,11 @@ class DinariBlockchain:
             
             # Store by index
             self.db.put(f"block_index:{new_block.index}", block_hash)
+            # STORE ALL TRANSACTIONS PERMANENTLY - ADD THIS BLOCK
+            for tx in transactions_to_include:
+                tx_dict = tx.to_dict()
+                tx_dict['hash'] = tx.get_hash()  # Ensure hash is included
+                self.store_transaction_permanently(tx_dict, new_block.index)
 
             # Update chain state
             self.chain_state["height"] += 1
