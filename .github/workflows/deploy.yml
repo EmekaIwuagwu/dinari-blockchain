@@ -12,15 +12,34 @@ jobs:
       - uses: actions/checkout@v4
       
       - name: Setup OCI CLI
-        uses: oracle-actions/configure-oci-cli@v1.3.0
-        with:
-          user: ${{ secrets.OCI_USER_ID }}
-          fingerprint: ${{ secrets.OCI_FINGERPRINT }}
-          tenancy: ${{ secrets.OCI_TENANCY_ID }}
-          region: ${{ secrets.OCI_REGION }}
-          private_key: ${{ secrets.OCI_PRIVATE_KEY }}
+        run: |
+          # Install OCI CLI non-interactively
+          bash -c "$(curl -L https://raw.githubusercontent.com/oracle/oci-cli/master/scripts/install/install.sh)" -- --accept-all-defaults
+          echo "$HOME/bin" >> $GITHUB_PATH
       
-      - name: Build and Deploy
+      - name: Configure OCI CLI
+        run: |
+          # Create OCI config directory
+          mkdir -p ~/.oci
+          
+          # Create OCI config file
+          cat > ~/.oci/config << EOF
+          [DEFAULT]
+          user=${{ secrets.OCI_USER_ID }}
+          fingerprint=${{ secrets.OCI_FINGERPRINT }}
+          tenancy=${{ secrets.OCI_TENANCY_ID }}
+          region=${{ secrets.OCI_REGION }}
+          key_file=~/.oci/oci_api_key.pem
+          EOF
+          
+          # Create private key file
+          echo "${{ secrets.OCI_PRIVATE_KEY }}" > ~/.oci/oci_api_key.pem
+          chmod 600 ~/.oci/oci_api_key.pem
+          
+          # Test OCI CLI
+          oci iam region list --output table
+      
+      - name: Build and Push Docker Image
         run: |
           # Build Docker image
           docker build -t dinari-blockchain .
@@ -28,16 +47,24 @@ jobs:
           # Tag for Oracle Registry
           docker tag dinari-blockchain ${{ secrets.OCI_REGISTRY }}/dinari-blockchain:latest
           
-          # Login and push
+          # Login to Oracle Container Registry
           echo "${{ secrets.OCI_TOKEN }}" | docker login ${{ secrets.OCI_REGISTRY }} -u ${{ secrets.OCI_USERNAME }} --password-stdin
+          
+          # Push to registry
           docker push ${{ secrets.OCI_REGISTRY }}/dinari-blockchain:latest
+          
+          echo "✅ Docker image pushed successfully!"
       
-      - name: Deploy to Container Instance
+      - name: Deploy to Oracle Container Instance
         run: |
+          # Get first availability domain
+          AD=$(oci iam availability-domain list --compartment-id ${{ secrets.OCI_TENANCY_ID }} --query 'data[0].name' --raw-output)
+          echo "Using Availability Domain: $AD"
+          
           # Create container instance
           oci container-instances container-instance create \
             --compartment-id ${{ secrets.OCI_TENANCY_ID }} \
-            --availability-domain $(oci iam availability-domain list --compartment-id ${{ secrets.OCI_TENANCY_ID }} --query 'data[0].name' --raw-output) \
+            --availability-domain "$AD" \
             --shape "CI.Standard.E4.Flex" \
             --shape-config '{"ocpus": 1, "memory_in_gbs": 4}' \
             --display-name "dinari-blockchain-$(date +%s)" \
@@ -57,13 +84,8 @@ jobs:
                 "ENABLE_MINING": "true"
               }
             }]' \
-            --vnics '[{
-              "subnetId": "'$(oci network subnet list --compartment-id ${{ secrets.OCI_TENANCY_ID }} --query 'data[0].id' --raw-output)'",
-              "assignPublicIp": true
-            }]'
-      
-      - name: Get Instance IP
-        run: |
-          echo "🚀 DinariBlockchain deployed!"
-          echo "Check your Oracle Cloud Console for the instance IP address"
-          echo "Your blockchain will be available at: http://INSTANCE_IP:5000"
+            --wait-for-state RUNNING \
+            --max-wait-seconds 300
+          
+          echo "🚀 DinariBlockchain deployed successfully!"
+          echo "Check Oracle Cloud Console → Container Instances for your running blockchain"
