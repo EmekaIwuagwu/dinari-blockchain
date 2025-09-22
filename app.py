@@ -158,7 +158,7 @@ def handle_dinari_getBlock(params):
             "timestamp": block_data.get('timestamp'),
             "transactions": [
                 {
-                    "hash": tx.get('hash', f"0x{hash(str(tx)):064x}"),
+                    "hash": tx.get('hash', f"DTx{hash(str(tx)) & 0xffffffffffffffff:016x}"),
                     "from_address": tx.get('from_address'),
                     "to_address": tx.get('to_address'),
                     "amount": str(tx.get('amount', 0)),
@@ -283,7 +283,7 @@ def handle_dinari_getRecentTransactions(params):
                 
                 for tx in block_transactions:
                     tx_info = {
-                        "hash": tx.get('hash', f"tx_{block_num}_{len(all_transactions)}"),
+                        "hash": tx.get('hash', f"DTx{block_num:08x}{len(all_transactions):08x}"),
                         "block_number": block_num,
                         "from_address": tx.get('from_address', 'unknown'),
                         "to_address": tx.get('to_address', 'unknown'),
@@ -346,8 +346,6 @@ def test_blockchain_methods():
     except Exception as e:
         print(f"Debug error: {e}")
 
-# Call this function to debug
-test_blockchain_methods()
 
 def handle_dinari_getRecentBlocks(params):
     """Get recent blocks - REAL DATA VERSION"""
