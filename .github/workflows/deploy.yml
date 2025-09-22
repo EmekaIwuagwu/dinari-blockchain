@@ -32,9 +32,15 @@ jobs:
           key_file=~/.oci/oci_api_key.pem
           EOF
           
-          # Create private key file
+          # Create private key file with proper ending
           echo "${{ secrets.OCI_PRIVATE_KEY }}" > ~/.oci/oci_api_key.pem
+          echo "OCI_API_KEY" >> ~/.oci/oci_api_key.pem
           chmod 600 ~/.oci/oci_api_key.pem
+          chmod 600 ~/.oci/config
+          
+          # Set environment variables to suppress warnings
+          echo "OCI_CLI_SUPPRESS_FILE_PERMISSIONS_WARNING=True" >> $GITHUB_ENV
+          echo "SUPPRESS_LABEL_WARNING=True" >> $GITHUB_ENV
           
           # Test OCI CLI
           oci iam region list --output table
@@ -101,14 +107,120 @@ jobs:
           IMAGE_ID=$(oci compute image list --compartment-id ${{ secrets.OCI_TENANCY_ID }} --operating-system "Oracle Linux" --operating-system-version "8" --shape "VM.Standard.E2.1.Micro" --query 'data[0].id' --raw-output)
           echo "Using Image: $IMAGE_ID"
           
+          # Get or create VCN and subnet
+          VCN_ID=$(oci network vcn list --compartment-id ${{ secrets.OCI_TENANCY_ID }} --query 'data[0].id' --raw-output 2>/dev/null || echo "")
+          
+          if [ -z "$VCN_ID" ] || [ "$VCN_ID" = "null" ]; then
+            echo "Creating VCN..."
+            VCN_ID=$(oci network vcn create \
+              --compartment-id ${{ secrets.OCI_TENANCY_ID }} \
+              --cidr-block "10.0.0.0/16" \
+              --display-name "dinari-blockchain-vcn" \
+              --wait-for-state AVAILABLE \
+              --query 'data.id' \
+              --raw-output)
+            echo "Created VCN: $VCN_ID"
+            
+            # Create Internet Gateway
+            IGW_ID=$(oci network internet-gateway create \
+              --compartment-id ${{ secrets.OCI_TENANCY_ID }} \
+              --vcn-id "$VCN_ID" \
+              --display-name "dinari-blockchain-igw" \
+              --is-enabled true \
+              --wait-for-state AVAILABLE \
+              --query 'data.id' \
+              --raw-output)
+            echo "Created Internet Gateway: $IGW_ID"
+            
+            # Get default route table
+            RT_ID=$(oci network route-table list \
+              --compartment-id ${{ secrets.OCI_TENANCY_ID }} \
+              --vcn-id "$VCN_ID" \
+              --query 'data[0].id' \
+              --raw-output)
+            
+            # Add route to internet gateway
+            oci network route-table update \
+              --rt-id "$RT_ID" \
+              --route-rules '[{
+                "destination": "0.0.0.0/0",
+                "destinationType": "CIDR_BLOCK",
+                "networkEntityId": "'$IGW_ID'"
+              }]' \
+              --force
+            
+            # Create Security List
+            SL_ID=$(oci network security-list create \
+              --compartment-id ${{ secrets.OCI_TENANCY_ID }} \
+              --vcn-id "$VCN_ID" \
+              --display-name "dinari-blockchain-seclist" \
+              --egress-security-rules '[{
+                "destination": "0.0.0.0/0",
+                "protocol": "all"
+              }]' \
+              --ingress-security-rules '[{
+                "source": "0.0.0.0/0",
+                "protocol": "6",
+                "tcpOptions": {
+                  "destinationPortRange": {
+                    "min": 22,
+                    "max": 22
+                  }
+                }
+              }, {
+                "source": "0.0.0.0/0",
+                "protocol": "6",
+                "tcpOptions": {
+                  "destinationPortRange": {
+                    "min": 5000,
+                    "max": 5000
+                  }
+                }
+              }, {
+                "source": "0.0.0.0/0",
+                "protocol": "6",
+                "tcpOptions": {
+                  "destinationPortRange": {
+                    "min": 8333,
+                    "max": 8333
+                  }
+                }
+              }]' \
+              --wait-for-state AVAILABLE \
+              --query 'data.id' \
+              --raw-output)
+            echo "Created Security List: $SL_ID"
+            
+            # Create Subnet
+            SUBNET_ID=$(oci network subnet create \
+              --compartment-id ${{ secrets.OCI_TENANCY_ID }} \
+              --vcn-id "$VCN_ID" \
+              --cidr-block "10.0.1.0/24" \
+              --display-name "dinari-blockchain-subnet" \
+              --route-table-id "$RT_ID" \
+              --security-list-ids '["'$SL_ID'"]' \
+              --wait-for-state AVAILABLE \
+              --query 'data.id' \
+              --raw-output)
+            echo "Created Subnet: $SUBNET_ID"
+          else
+            echo "Using existing VCN: $VCN_ID"
+            # Get existing subnet
+            SUBNET_ID=$(oci network subnet list --compartment-id ${{ secrets.OCI_TENANCY_ID }} --vcn-id "$VCN_ID" --query 'data[0].id' --raw-output)
+            echo "Using existing Subnet: $SUBNET_ID"
+          fi
+          
           # Create VM instance
+          echo "Creating VM instance..."
           INSTANCE_ID=$(oci compute instance launch \
             --compartment-id ${{ secrets.OCI_TENANCY_ID }} \
             --availability-domain "$AD" \
             --shape "VM.Standard.E2.1.Micro" \
             --image-id "$IMAGE_ID" \
+            --subnet-id "$SUBNET_ID" \
             --display-name "dinari-blockchain-$(date +%s)" \
             --user-data-file cloud-init.yaml \
+            --assign-public-ip true \
             --wait-for-state RUNNING \
             --max-wait-seconds 300 \
             --query 'data.id' \
