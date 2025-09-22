@@ -1,35 +1,47 @@
-name: Deploy to Oracle Cloud VPS
+# .github/workflows/deploy-simple.yml
+name: Simple Oracle Cloud Deploy
 
 on:
   push:
-    branches: [ "main" ]
-  workflow_dispatch:
+    branches: [main]
 
 jobs:
   deploy:
     runs-on: ubuntu-latest
-
     steps:
-      - name: Checkout repo
-        uses: actions/checkout@v4
-
-      - name: Deploy via SSH + Rsync
-        uses: appleboy/ssh-action@v1.2.1
-        with:
-          host: ${{ secrets.SSH_HOST }}
-          username: ${{ secrets.SSH_USER }}
-          key: ${{ secrets.SSH_PRIVATE_KEY }}
-          port: ${{ secrets.SSH_PORT }}
-          script_stop: true
-          script: |
-            set -e
-            # Ensure app dir exists
-            mkdir -p /opt/dinari
-            # Sync files from repo
-            rsync -avz --delete --exclude '.git*' $GITHUB_WORKSPACE/ /opt/dinari/
-            cd /opt/dinari
-            # Build and restart
-            docker compose down || true
-            docker compose build --pull
-            docker compose up -d
-            docker compose ps
+      - uses: actions/checkout@v4
+      
+      - name: Setup Oracle CLI
+        run: |
+          curl -L https://raw.githubusercontent.com/oracle/oci-cli/master/scripts/install/install.sh | bash
+          echo "$HOME/bin" >> $GITHUB_PATH
+      
+      - name: Configure Oracle
+        run: |
+          mkdir -p ~/.oci
+          echo "${{ secrets.OCI_CONFIG }}" > ~/.oci/config
+          echo "${{ secrets.OCI_PRIVATE_KEY }}" > ~/.oci/oci_api_key.pem
+          chmod 600 ~/.oci/oci_api_key.pem
+      
+      - name: Build and Deploy
+        run: |
+          # Build Docker image
+          docker build -t dinari-blockchain .
+          
+          # Tag for Oracle Registry
+          docker tag dinari-blockchain ${{ secrets.OCI_REGISTRY }}/dinari-blockchain:latest
+          
+          # Login and push
+          echo "${{ secrets.OCI_TOKEN }}" | docker login ${{ secrets.OCI_REGISTRY }} -u ${{ secrets.OCI_USERNAME }} --password-stdin
+          docker push ${{ secrets.OCI_REGISTRY }}/dinari-blockchain:latest
+          
+          # Deploy to Oracle Cloud
+          oci compute instance launch \
+            --compartment-id ${{ secrets.OCI_COMPARTMENT_ID }} \
+            --availability-domain ${{ secrets.OCI_AVAILABILITY_DOMAIN }} \
+            --shape VM.Standard.E4.Flex \
+            --shape-config '{"ocpus": 1, "memory_in_gbs": 8}' \
+            --image-id ${{ secrets.OCI_IMAGE_ID }} \
+            --subnet-id ${{ secrets.OCI_SUBNET_ID }} \
+            --display-name dinari-blockchain \
+            --user-data-file startup.sh
