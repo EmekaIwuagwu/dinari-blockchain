@@ -11,17 +11,14 @@ jobs:
     steps:
       - uses: actions/checkout@v4
       
-      - name: Setup Oracle CLI
-        run: |
-          curl -L https://raw.githubusercontent.com/oracle/oci-cli/master/scripts/install/install.sh | bash
-          echo "$HOME/bin" >> $GITHUB_PATH
-      
-      - name: Configure Oracle
-        run: |
-          mkdir -p ~/.oci
-          echo "${{ secrets.OCI_CONFIG }}" > ~/.oci/config
-          echo "${{ secrets.OCI_PRIVATE_KEY }}" > ~/.oci/oci_api_key.pem
-          chmod 600 ~/.oci/oci_api_key.pem
+      - name: Setup OCI CLI
+        uses: oracle-actions/configure-oci-cli@v1.3.0
+        with:
+          user: ${{ secrets.OCI_USER_ID }}
+          fingerprint: ${{ secrets.OCI_FINGERPRINT }}
+          tenancy: ${{ secrets.OCI_TENANCY_ID }}
+          region: ${{ secrets.OCI_REGION }}
+          private_key: ${{ secrets.OCI_PRIVATE_KEY }}
       
       - name: Build and Deploy
         run: |
@@ -34,14 +31,39 @@ jobs:
           # Login and push
           echo "${{ secrets.OCI_TOKEN }}" | docker login ${{ secrets.OCI_REGISTRY }} -u ${{ secrets.OCI_USERNAME }} --password-stdin
           docker push ${{ secrets.OCI_REGISTRY }}/dinari-blockchain:latest
-          
-          # Deploy to Oracle Cloud
-          oci compute instance launch \
-            --compartment-id ${{ secrets.OCI_COMPARTMENT_ID }} \
-            --availability-domain ${{ secrets.OCI_AVAILABILITY_DOMAIN }} \
-            --shape VM.Standard.E4.Flex \
-            --shape-config '{"ocpus": 1, "memory_in_gbs": 8}' \
-            --image-id ${{ secrets.OCI_IMAGE_ID }} \
-            --subnet-id ${{ secrets.OCI_SUBNET_ID }} \
-            --display-name dinari-blockchain \
-            --user-data-file startup.sh
+      
+      - name: Deploy to Container Instance
+        run: |
+          # Create container instance
+          oci container-instances container-instance create \
+            --compartment-id ${{ secrets.OCI_TENANCY_ID }} \
+            --availability-domain $(oci iam availability-domain list --compartment-id ${{ secrets.OCI_TENANCY_ID }} --query 'data[0].name' --raw-output) \
+            --shape "CI.Standard.E4.Flex" \
+            --shape-config '{"ocpus": 1, "memory_in_gbs": 4}' \
+            --display-name "dinari-blockchain-$(date +%s)" \
+            --containers '[{
+              "displayName": "dinari-blockchain",
+              "imageUrl": "${{ secrets.OCI_REGISTRY }}/dinari-blockchain:latest",
+              "resourceConfig": {
+                "memoryLimitInGBs": 4,
+                "vcpusLimit": 1
+              },
+              "environmentVariables": {
+                "LEVELDB_PATH": "/app/blockchain_data",
+                "FLASK_ENV": "production",
+                "BLOCKCHAIN_NETWORK": "mainnet",
+                "P2P_PORT": "8333",
+                "API_PORT": "5000",
+                "ENABLE_MINING": "true"
+              }
+            }]' \
+            --vnics '[{
+              "subnetId": "'$(oci network subnet list --compartment-id ${{ secrets.OCI_TENANCY_ID }} --query 'data[0].id' --raw-output)'",
+              "assignPublicIp": true
+            }]'
+      
+      - name: Get Instance IP
+        run: |
+          echo "🚀 DinariBlockchain deployed!"
+          echo "Check your Oracle Cloud Console for the instance IP address"
+          echo "Your blockchain will be available at: http://INSTANCE_IP:5000"
