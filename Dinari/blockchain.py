@@ -650,16 +650,19 @@ class DinariBlockchain:
 
     def __init__(self, db_path: str = "./dinari_data"):
         self.logger = logging.getLogger("Dinari.blockchain")
-        self.create_transaction_indices()
-        
-        # Initialize LevelDB
+        # Initialize LevelDB FIRST
         self.db = DinariLevelDB(db_path)
+        
+        # THEN create transaction indices
+        self.create_transaction_indices()
         
         # Load or create blockchain state
         self.chain_state = self._load_chain_state()
         self.pending_transactions = []
-        self.validators = self._load_validators()
-        self.dinari_balances = self._load_balances()
+        
+        # Load validators (use existing methods)
+        self.validators = self.db.get("validators") or []
+        self.dinari_balances = self.db.get("dinari_balances") or {}
         self.contracts = self._load_contracts()
         
         # Mining control
