@@ -712,7 +712,7 @@ class DinariBlockchain:
                 return False
             
             # Get current transaction count
-            tx_count = int(self.db.get(b'tx_count') or b'0')
+            tx_count = int(self.db.get('tx_count') or '0')
             
             # Store transaction with multiple keys for different access patterns:
             # 1. By hash (primary key) - for direct hash lookups
@@ -757,63 +757,61 @@ class DinariBlockchain:
             return False
     
 
-def get_all_transactions(self, start_index=0, limit=100, reverse=True):
-    """Get transactions with pagination - NEVER loses old transactions"""
-    try:
-        transactions = []
-        
-        # Get total transaction count (using string key)
-        total_count = int(self.db.get('tx_count') or '0')
-        
-        if total_count == 0:
+    def get_all_transactions(self, start_index=0, limit=100, reverse=True):
+        """Get transactions with pagination - NEVER loses old transactions"""
+        try:
+            transactions = []
+            
+            # Get total transaction count (using string key)
+            total_count = int(self.db.get('tx_count') or '0')
+            
+            if total_count == 0:
+                return {'transactions': [], 'total': 0, 'has_more': False}
+            
+            # Calculate range
+            if reverse:
+                # Start from newest transactions
+                end_index = total_count - start_index
+                start_scan = max(0, end_index - limit)
+                indices = range(end_index - 1, start_scan - 1, -1)
+            else:
+                # Start from oldest transactions
+                end_scan = min(total_count, start_index + limit)
+                indices = range(start_index, end_scan)
+            
+            # Retrieve transactions (using string keys)
+            for i in indices:
+                try:
+                    key = f"tx:index:{i:010d}"
+                    data = self.db.get(key)
+                    if data:
+                        tx_meta = json.loads(data) if isinstance(data, str) else json.loads(data.decode())
+                        
+                        # Get full transaction details (using string key)
+                        full_tx_data = self.db.get(f"tx:hash:{tx_meta['hash']}")
+                        if full_tx_data:
+                            full_tx = json.loads(full_tx_data) if isinstance(full_tx_data, str) else json.loads(full_tx_data.decode())
+                            transactions.append(full_tx['transaction'])
+                        
+                except Exception as e:
+                    print(f"Error retrieving transaction at index {i}: {e}")
+                    continue
+            
+            has_more = (reverse and start_index + limit < total_count) or \
+                    (not reverse and start_index + len(transactions) < total_count)
+            
+            print(f"Retrieved {len(transactions)} transactions from permanent storage")
+            
+            return {
+                'transactions': transactions,
+                'total': total_count,
+                'has_more': has_more,
+                'start_index': start_index
+            }
+            
+        except Exception as e:
+            print(f"Error getting all transactions: {e}")
             return {'transactions': [], 'total': 0, 'has_more': False}
-        
-        # Calculate range
-        if reverse:
-            # Start from newest transactions
-            end_index = total_count - start_index
-            start_scan = max(0, end_index - limit)
-            indices = range(end_index - 1, start_scan - 1, -1)
-        else:
-            # Start from oldest transactions
-            end_scan = min(total_count, start_index + limit)
-            indices = range(start_index, end_scan)
-        
-        # Retrieve transactions (using string keys)
-        for i in indices:
-            try:
-                key = f"tx:index:{i:010d}"
-                data = self.db.get(key)
-                if data:
-                    tx_meta = json.loads(data) if isinstance(data, str) else json.loads(data.decode())
-                    
-                    # Get full transaction details (using string key)
-                    full_tx_data = self.db.get(f"tx:hash:{tx_meta['hash']}")
-                    if full_tx_data:
-                        full_tx = json.loads(full_tx_data) if isinstance(full_tx_data, str) else json.loads(full_tx_data.decode())
-                        transactions.append(full_tx['transaction'])
-                    
-            except Exception as e:
-                print(f"Error retrieving transaction at index {i}: {e}")
-                continue
-        
-        has_more = (reverse and start_index + limit < total_count) or \
-                  (not reverse and start_index + len(transactions) < total_count)
-        
-        print(f"Retrieved {len(transactions)} transactions from permanent storage")
-        
-        return {
-            'transactions': transactions,
-            'total': total_count,
-            'has_more': has_more,
-            'start_index': start_index
-        }
-        
-    except Exception as e:
-        print(f"Error getting all transactions: {e}")
-        return {'transactions': [], 'total': 0, 'has_more': False}
-
-    
 
     def _save_chain_state(self):
         """Save blockchain state to LevelDB"""
