@@ -1053,6 +1053,53 @@ class DinariBlockchain:
         except Exception as e:
             print(f"Error creating index mapping: {e}")
 
+    def rebuild_transaction_storage(self):
+        """Rebuild permanent transaction storage from all blocks"""
+        try:
+            print("🔧 Rebuilding transaction storage from all blocks...")
+            
+            # Reset transaction count
+            self.db.put(b'tx_count', b'0')
+            
+            # Get all blocks and rebuild transaction storage
+            chain_height = self.get_chain_height()
+            total_stored = 0
+            
+            for block_num in range(chain_height):
+                try:
+                    block_data = self.get_block_by_index(block_num)
+                    if block_data and 'transactions' in block_data:
+                        for tx in block_data['transactions']:
+                            # Ensure transaction has proper DTx hash
+                            if 'hash' not in tx or not tx['hash'].startswith('DTx'):
+                                # Generate proper DTx hash
+                                tx_obj = Transaction(
+                                    from_address=tx.get('from_address', ''),
+                                    to_address=tx.get('to_address', ''),
+                                    amount=Decimal(str(tx.get('amount', 0))),
+                                    gas_price=Decimal(str(tx.get('gas_price', 0))),
+                                    gas_limit=int(tx.get('gas_limit', 21000)),
+                                    nonce=int(tx.get('nonce', 0)),
+                                    data=tx.get('data', ''),
+                                    timestamp=int(tx.get('timestamp', time.time()))
+                                )
+                                tx['hash'] = tx_obj.get_hash()
+                            
+                            # Store with permanent storage
+                            self.store_transaction_permanently(tx, block_num)
+                            total_stored += 1
+                            
+                except Exception as e:
+                    print(f"Error rebuilding block {block_num}: {e}")
+                    continue
+            
+            print(f"✅ Rebuilt storage for {total_stored} transactions")
+            return total_stored
+            
+        except Exception as e:
+            print(f"❌ Error rebuilding transaction storage: {e}")
+            return 0
+
     def start_automatic_mining(self, interval: int = 15):
         """Start automatic block mining"""
         if self.mining_active:

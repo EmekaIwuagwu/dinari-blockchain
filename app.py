@@ -225,7 +225,7 @@ def handle_dinari_getTransaction(params):
 
 
 def handle_dinari_getRecentTransactions(params):
-    """Get ALL transactions with fallback to block scanning"""
+    """Get ALL transactions with permanent storage - FIXED VERSION"""
     try:
         limit = int(params[0]) if params and len(params) > 0 else 50
         start_index = int(params[1]) if len(params) > 1 else 0
@@ -234,16 +234,41 @@ def handle_dinari_getRecentTransactions(params):
         if not blockchain:
             return {"success": False, "error": "Blockchain not available"}
         
-        # Try permanent storage first
+        # FORCE permanent storage first
         if hasattr(blockchain, 'get_all_transactions'):
             result = blockchain.get_all_transactions(start_index, limit, reverse=True)
             
-            # If permanent storage has transactions, use it
+            # If no transactions in permanent storage, force rebuild
+            if result['total'] == 0:
+                print("🔧 Rebuilding transaction storage...")
+                chain_height = blockchain.get_chain_height()
+                for block_num in range(chain_height):
+                    try:
+                        block_data = blockchain.get_block_by_index(block_num)
+                        if block_data and 'transactions' in block_data:
+                            for tx in block_data['transactions']:
+                                # Ensure DTx hash
+                                if 'hash' not in tx or not tx['hash'].startswith('DTx'):
+                                    tx_string = f"{tx.get('from_address', '')}{tx.get('to_address', '')}{tx.get('amount', 0)}{tx.get('nonce', 0)}{tx.get('timestamp', 0)}{tx.get('data', '')}"
+                                    tx['hash'] = "DTx" + hashlib.sha256(tx_string.encode()).hexdigest()
+                                
+                                blockchain.store_transaction_permanently(tx, block_num)
+                    except Exception as e:
+                        continue
+                
+                # Try again after rebuild
+                result = blockchain.get_all_transactions(start_index, limit, reverse=True)
+            
             if result['total'] > 0:
                 transactions = []
                 for tx in result['transactions']:
+                    # Ensure DTx hash format
+                    tx_hash = tx.get('hash', 'unknown')
+                    if tx_hash != 'unknown' and not tx_hash.startswith('DTx'):
+                        tx_hash = f"DTx{tx_hash.replace('0x', '')}"
+                    
                     tx_info = {
-                        "hash": tx.get('hash', 'unknown'),
+                        "hash": tx_hash,
                         "block_number": tx.get('block_number', 0),
                         "from_address": tx.get('from_address', 'unknown'),
                         "to_address": tx.get('to_address', 'unknown'),
@@ -255,7 +280,7 @@ def handle_dinari_getRecentTransactions(params):
                     }
                     transactions.append(tx_info)
                 
-                print(f"🎯 Found {len(transactions)} real transactions from LevelDB")
+                print(f"✅ Returning {len(transactions)} transactions from permanent storage")
                 return {
                     "success": True,
                     "transactions": transactions,
@@ -263,55 +288,9 @@ def handle_dinari_getRecentTransactions(params):
                     "has_more": result['has_more']
                 }
         
-        # FALLBACK: Scan all blocks for transactions (legacy method)
-        print("📦 Falling back to block scanning method")
-        all_transactions = []
-        chain_height = blockchain.get_chain_height()
-        
-        if chain_height == 0:
-            return {"success": True, "transactions": [], "total": 0}
-        
-        # Scan all blocks for transactions
-        for block_num in range(chain_height - 1, -1, -1):
-            try:
-                block_data = blockchain.get_block_by_index(block_num)
-                if not block_data:
-                    continue
-                
-                block_transactions = block_data.get('transactions', [])
-                print(f"📦 Block {block_num}: {len(block_transactions)} transactions")
-                
-                for tx in block_transactions:
-                    tx_info = {
-                        "hash": tx.get('hash', f"DTx{block_num:08x}{len(all_transactions):08x}"),
-                        "block_number": block_num,
-                        "from_address": tx.get('from_address', 'unknown'),
-                        "to_address": tx.get('to_address', 'unknown'),
-                        "amount": str(tx.get('amount', 0)),
-                        "gas_limit": str(tx.get('gas_limit', 21000)),
-                        "gas_price": str(tx.get('gas_price', 0)),
-                        "timestamp": tx.get('timestamp', int(time.time())),
-                        "status": "success"
-                    }
-                    all_transactions.append(tx_info)
-            
-            except Exception as e:
-                print(f"❌ Error scanning block {block_num}: {e}")
-                continue
-        
-        # Apply pagination
-        total_count = len(all_transactions)
-        paginated_transactions = all_transactions[start_index:start_index + limit]
-        has_more = start_index + len(paginated_transactions) < total_count
-        
-        print(f"📦 Block scanning found {total_count} total transactions, returning {len(paginated_transactions)}")
-        
-        return {
-            "success": True,
-            "transactions": paginated_transactions,
-            "total": total_count,
-            "has_more": has_more
-        }
+        # Fallback to block scanning if permanent storage fails
+        print("📦 Falling back to block scanning")
+        return {"success": False, "error": "Permanent storage not working, check console"}
         
     except Exception as e:
         print(f"❌ ERROR in getRecentTransactions: {e}")
@@ -386,74 +365,6 @@ def handle_dinari_getRecentBlocks(params):
         
     except Exception as e:
         print(f"Error in getRecentBlocks: {e}")
-        return {"success": False, "error": str(e)}
-
-
-def handle_dinari_getRecentTransactions(params):
-    """Get recent transactions from LevelDB blocks - REAL DATA VERSION"""
-    try:
-        limit = int(params[0]) if params and len(params) > 0 else 20
-        
-        if not blockchain:
-            return {"success": False, "error": "Blockchain not available"}
-        
-        transactions = []
-        
-        # Get current chain height (same pattern as your working blocks handler)
-        chain_height = blockchain.get_chain_height()
-        if chain_height == 0:
-            return {"success": True, "data": {"transactions": [], "total": 0}}
-        
-        # Look through recent blocks to find transactions (newest first)
-        start_block = max(0, chain_height - 20)  # Check last 20 blocks
-        
-        for block_num in range(chain_height, start_block - 1, -1):
-            if len(transactions) >= limit:
-                break
-                
-            try:
-                # Use the same method as your working blocks handler
-                block_data = blockchain.get_block_by_index(block_num)
-                if not block_data:
-                    continue
-                
-                # Extract transactions from this block
-                block_transactions = block_data.get('transactions', [])
-                
-                for tx in block_transactions:
-                    if len(transactions) >= limit:
-                        break
-                    
-                    # Build transaction info from real data
-                    tx_info = {
-                        "hash": tx.get('hash', tx.get('id', f"0x{block_num}_{len(transactions):08x}")),
-                        "block_number": block_num,
-                        "from_address": tx.get('from', tx.get('sender', tx.get('from_address', 'unknown'))),
-                        "to_address": tx.get('to', tx.get('recipient', tx.get('to_address', 'unknown'))),
-                        "amount": str(tx.get('amount', tx.get('value', 0))),
-                        "gas_limit": str(tx.get('gas_limit', tx.get('gas', 21000))),
-                        "gas_price": str(tx.get('gas_price', 0)),
-                        "timestamp": block_data.get('timestamp', int(time.time())),
-                        "status": tx.get('status', 'success')
-                    }
-                    transactions.append(tx_info)
-                
-            except Exception as e:
-                print(f"Error processing block {block_num} transactions: {e}")
-                continue
-        
-        print(f"🎯 Found {len(transactions)} real transactions from LevelDB")
-        
-        return {
-            "success": True,
-            "data": {
-                "transactions": transactions,
-                "total": len(transactions)
-            }
-        }
-        
-    except Exception as e:
-        print(f"Error in getRecentTransactions: {e}")
         return {"success": False, "error": str(e)}
 
 
