@@ -1436,7 +1436,11 @@ def rpc_handler():
                 if result["success"]:
                     return jsonify({
                         "jsonrpc": "2.0",
-                        "result": result["data"],
+                        "result": {
+                            "transactions": result["transactions"],
+                            "total": result["total"],
+                            "has_more": result["has_more"]
+                        },
                         "id": data.get("id", 1)
                     })
                 else:
