@@ -2,7 +2,7 @@ name: Deploy to Oracle Cloud VPS
 
 on:
   push:
-    branches: [ "main" ]   # change if you deploy from another branch
+    branches: [ "main" ]
   workflow_dispatch:
 
 jobs:
@@ -10,43 +10,25 @@ jobs:
     runs-on: ubuntu-latest
 
     steps:
-      # 1. Checkout your repo code
       - name: Checkout repo
         uses: actions/checkout@v4
 
-      # 2. Start ssh-agent and add private key from secrets
-      - name: Setup SSH
-        uses: webfactory/ssh-agent@v0.9.0
-        with:
-          ssh-private-key: ${{ secrets.SSH_PRIVATE_KEY }}
-
-      # 3. Add server host key to known_hosts
-      - name: Add server to known_hosts
-        run: |
-          mkdir -p ~/.ssh
-          ssh-keyscan -p ${{ secrets.SSH_PORT }} ${{ secrets.SSH_HOST }} >> ~/.ssh/known_hosts
-
-      # 4. Copy repo files to your VPS
-      - name: Sync files to server
-        uses: Burnett01/rsync-deployments@7.0.1
-        with:
-          switches: -avzr --delete
-          path: .
-          remote_path: /opt/dinari/
-          remote_host: ${{ secrets.SSH_HOST }}
-          remote_user: ${{ secrets.SSH_USER }}
-          remote_port: ${{ secrets.SSH_PORT }}
-
-      # 5. Deploy with Docker Compose
-      - name: Build & restart with Docker Compose
+      - name: Deploy via SSH + Rsync
         uses: appleboy/ssh-action@v1.2.1
         with:
           host: ${{ secrets.SSH_HOST }}
           username: ${{ secrets.SSH_USER }}
+          key: ${{ secrets.SSH_PRIVATE_KEY }}
           port: ${{ secrets.SSH_PORT }}
+          script_stop: true
           script: |
             set -e
+            # Ensure app dir exists
+            mkdir -p /opt/dinari
+            # Sync files from repo
+            rsync -avz --delete --exclude '.git*' $GITHUB_WORKSPACE/ /opt/dinari/
             cd /opt/dinari
+            # Build and restart
             docker compose down || true
             docker compose build --pull
             docker compose up -d
