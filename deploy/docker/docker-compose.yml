@@ -1,0 +1,115 @@
+# DinariBlockchain Local Stack - 1GB RAM Optimized
+# Minimal setup for testing on resource-constrained systems
+
+version: '3.8'
+
+services:
+  # ============================================================================
+  # VALIDATOR NODE (Single, minimal)
+  # ============================================================================
+  
+  validator-1:
+    build:
+      context: ../..
+      dockerfile: deploy/docker/Dockerfile.validator
+    container_name: dinari-validator-1
+    environment:
+      NODE_ID: validator-1
+      NODE_TYPE: validator
+      P2P_PORT: 8333
+      API_PORT: 5000
+      LEVELDB_PATH: /app/dinari_data
+      LEVELDB_CACHE_SIZE_MB: 64
+      NODE_ENV: development
+      MINING_ENABLED: true
+      VALIDATOR_ENABLED: true
+      # No database URLs - pure LevelDB
+    volumes:
+      - validator1_data:/app/dinari_data
+    ports:
+      - "5001:5000"
+      - "8333:8333"
+    networks:
+      - dinari-network
+    restart: unless-stopped
+    # Minimal memory allocation
+    mem_limit: 400m
+    memswap_limit: 400m
+
+  # ============================================================================
+  # RPC NODE (Single, minimal)
+  # ============================================================================
+  
+  rpc-1:
+    build:
+      context: ../..
+      dockerfile: deploy/docker/Dockerfile.rpc
+    container_name: dinari-rpc-1
+    environment:
+      NODE_ID: rpc-1
+      NODE_TYPE: rpc
+      P2P_PORT: 8334
+      API_PORT: 5000
+      LEVELDB_PATH: /app/dinari_data
+      LEVELDB_CACHE_SIZE_MB: 32
+      NODE_ENV: development
+      MINING_ENABLED: false
+      VALIDATOR_ENABLED: false
+      RPC_ENABLED: true
+      API_RATE_LIMIT: 200
+      MAX_CONNECTIONS: 50
+      BOOTSTRAP_NODES: validator-1:8333
+    volumes:
+      - rpc1_data:/app/dinari_data
+    ports:
+      - "8080:5000"  # Main API port
+      - "8334:8334"  # P2P port
+    depends_on:
+      - validator-1
+    networks:
+      - dinari-network
+    restart: unless-stopped
+    # Minimal memory allocation
+    mem_limit: 300m
+    memswap_limit: 300m
+
+  # ============================================================================
+  # SIMPLE NGINX LOAD BALANCER (Optional, minimal)
+  # ============================================================================
+  
+  nginx-lb:
+    image: nginx:alpine
+    container_name: dinari-load-balancer
+    volumes:
+      - ./nginx-simple.conf:/etc/nginx/nginx.conf:ro
+    ports:
+      - "80:80"
+    depends_on:
+      - rpc-1
+    networks:
+      - dinari-network
+    restart: unless-stopped
+    # Very minimal memory allocation
+    mem_limit: 32m
+    memswap_limit: 32m
+
+# ============================================================================
+# NETWORKS (Simplified)
+# ============================================================================
+
+networks:
+  dinari-network:
+    driver: bridge
+    ipam:
+      config:
+        - subnet: 172.20.0.0/24
+
+# ============================================================================
+# VOLUMES (Minimal)
+# ============================================================================
+
+volumes:
+  validator1_data:
+    driver: local
+  rpc1_data:
+    driver: local

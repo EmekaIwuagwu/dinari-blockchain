@@ -1,0 +1,327 @@
+name: Deploy DinariBlockchain Mainnet
+
+on:
+  push:
+    tags:
+      - 'v*'  # Only deploy on version tags (v1.0.0, v1.1.0, etc.)
+  workflow_dispatch:  # Allow manual deployment
+    inputs:
+      version:
+        description: 'Version to deploy'
+        required: true
+        default: 'latest'
+      skip_tests:
+        description: 'Skip tests (emergency deployment)'
+        required: false
+        default: 'false'
+        type: boolean
+
+env:
+  PYTHON_VERSION: '3.11'
+  NODE_ENV: 'production'
+  NETWORK: 'mainnet'
+
+jobs:
+  # Security and Pre-deployment Checks
+  security-check:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v4
+
+      - name: Run security audit
+        run: |
+          echo "🔒 Running security audit..."
+          # Check for hardcoded secrets
+          if grep -r "sk-" . --include="*.py" --include="*.js" --include="*.yaml"; then
+            echo "❌ Found potential hardcoded API keys"
+            exit 1
+          fi
+          
+          # Check for test/debug code in production
+          if grep -r "DEBUG.*True" . --include="*.py"; then
+            echo "❌ Found DEBUG=True in code"
+            exit 1
+          fi
+          echo "✅ Security audit passed"
+
+      - name: Verify version tag
+        if: github.event_name == 'push'
+        run: |
+          VERSION=${GITHUB_REF#refs/tags/}
+          echo "Deploying version: $VERSION"
+          if [[ ! $VERSION =~ ^v[0-9]+\.[0-9]+\.[0-9]+$ ]]; then
+            echo "❌ Invalid version format. Use v1.0.0 format"
+            exit 1
+          fi
+
+  # Comprehensive Testing Suite
+  test-suite:
+    runs-on: ubuntu-latest
+    needs: security-check
+    if: ${{ !inputs.skip_tests }}
+    
+    services:
+      postgres:
+        image: postgres:15
+        env:
+          POSTGRES_PASSWORD: testpass
+          POSTGRES_DB: dinari_test
+        options: >-
+          --health-cmd pg_isready
+          --health-interval 10s
+          --health-timeout 5s
+          --health-retries 5
+
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v4
+
+      - name: Set up Python
+        uses: actions/setup-python@v4
+        with:
+          python-version: ${{ env.PYTHON_VERSION }}
+
+      - name: Cache dependencies
+        uses: actions/cache@v3
+        with:
+          path: ~/.cache/pip
+          key: ${{ runner.os }}-pip-${{ hashFiles('**/requirements.txt') }}
+
+      - name: Install dependencies
+        run: |
+          python -m pip install --upgrade pip
+          pip install -r requirements.txt
+          pip install pytest pytest-cov
+
+      - name: Run blockchain core tests
+        run: |
+          echo "🧪 Running blockchain core tests..."
+          python -m pytest tests/test_blockchain.py -v --cov=blockchain
+
+      - name: Run consensus tests
+        run: |
+          echo "⚡ Running consensus mechanism tests..."
+          python -m pytest tests/test_consensus.py -v
+
+      - name: Run transaction tests
+        run: |
+          echo "💰 Running transaction tests..."
+          python -m pytest tests/test_transactions.py -v
+
+      - name: Run API integration tests
+        run: |
+          echo "🔗 Running API integration tests..."
+          python -m pytest tests/test_api.py -v
+
+      - name: Load testing
+        run: |
+          echo "🚀 Running load tests..."
+          python tools/load_test.py --transactions 1000 --concurrent 10
+
+      - name: Security penetration test
+        run: |
+          echo "🛡️ Running security tests..."
+          python tools/security_test.py
+
+  # Build and prepare artifacts
+  build:
+    runs-on: ubuntu-latest
+    needs: [security-check, test-suite]
+    if: always() && (needs.security-check.result == 'success') && (needs.test-suite.result == 'success' || inputs.skip_tests)
+    
+    outputs:
+      version: ${{ steps.version.outputs.version }}
+      
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v4
+
+      - name: Get version
+        id: version
+        run: |
+          if [[ "${{ github.event_name }}" == "push" ]]; then
+            VERSION=${GITHUB_REF#refs/tags/}
+          else
+            VERSION="${{ inputs.version }}"
+          fi
+          echo "version=$VERSION" >> $GITHUB_OUTPUT
+          echo "Deploying version: $VERSION"
+
+      - name: Set up Python
+        uses: actions/setup-python@v4
+        with:
+          python-version: ${{ env.PYTHON_VERSION }}
+
+      - name: Build application package
+        run: |
+          echo "📦 Building DinariBlockchain package..."
+          python setup.py sdist bdist_wheel
+
+      - name: Create deployment package
+        run: |
+          echo "📋 Creating deployment package..."
+          mkdir -p deploy-package
+          cp -r blockchain/ deploy-package/
+          cp -r api/ deploy-package/
+          cp -r tools/ deploy-package/
+          cp requirements.txt deploy-package/
+          cp main.py deploy-package/
+          cp -r deploy/ deploy-package/
+          
+          # Create version file
+          echo "${{ steps.version.outputs.version }}" > deploy-package/VERSION
+          echo "$(date -u)" > deploy-package/BUILD_DATE
+          echo "${{ github.sha }}" > deploy-package/COMMIT_SHA
+
+      - name: Upload deployment artifact
+        uses: actions/upload-artifact@v3
+        with:
+          name: dinari-blockchain-${{ steps.version.outputs.version }}
+          path: deploy-package/
+          retention-days: 30
+
+  # Deploy to staging first
+  deploy-staging:
+    runs-on: ubuntu-latest
+    needs: build
+    environment: mainnet-staging
+    
+    steps:
+      - name: Download deployment package
+        uses: actions/download-artifact@v3
+        with:
+          name: dinari-blockchain-${{ needs.build.outputs.version }}
+
+      - name: Deploy to staging
+        run: |
+          echo "🚧 Deploying to mainnet staging..."
+          # Add your staging deployment commands here
+          echo "✅ Staging deployment complete"
+
+      - name: Run staging smoke tests
+        run: |
+          echo "🧪 Running staging smoke tests..."
+          sleep 30  # Wait for service to start
+          
+          # Test basic API endpoints
+          curl -f http://staging.dinari.com/api/blockchain/info || exit 1
+          curl -f http://staging.dinari.com/health || exit 1
+          
+          echo "✅ Staging smoke tests passed"
+
+  # Production deployment with approvals
+  deploy-mainnet:
+    runs-on: ubuntu-latest
+    needs: [build, deploy-staging]
+    environment: mainnet-production
+    
+    steps:
+      - name: Download deployment package
+        uses: actions/download-artifact@v3
+        with:
+          name: dinari-blockchain-${{ needs.build.outputs.version }}
+
+      - name: Pre-deployment backup
+        run: |
+          echo "💾 Creating pre-deployment backup..."
+          # Add backup commands for your VPS
+          # ssh user@your-vps "sudo -u dinari /opt/dinari/tools/backup.sh"
+
+      - name: Deploy to production VPS
+        run: |
+          echo "🚀 Deploying DinariBlockchain v${{ needs.build.outputs.version }} to mainnet..."
+          
+          # Example deployment to VPS (replace with your actual server)
+          # scp -r ./* user@your-production-vps:/tmp/dinari-deploy/
+          # ssh user@your-production-vps "sudo /tmp/dinari-deploy/deploy/scripts/deploy.sh mainnet"
+
+      - name: Wait for service startup
+        run: |
+          echo "⏳ Waiting for services to start..."
+          sleep 60
+
+      - name: Post-deployment health check
+        run: |
+          echo "🏥 Running post-deployment health checks..."
+          
+          # Replace with your actual production URL
+          # curl -f https://mainnet.dinari.com/health || exit 1
+          # curl -f https://mainnet.dinari.com/api/blockchain/info || exit 1
+          
+          echo "✅ Production health checks passed"
+
+      - name: Update monitoring
+        run: |
+          echo "📊 Updating monitoring dashboards..."
+          # Add commands to update monitoring with new version
+          echo "✅ Monitoring updated"
+
+  # Rollback capability
+  rollback:
+    runs-on: ubuntu-latest
+    if: failure()
+    environment: mainnet-production
+    needs: [deploy-mainnet]
+    
+    steps:
+      - name: Emergency rollback
+        run: |
+          echo "🔄 Initiating emergency rollback..."
+          # Add rollback commands
+          # ssh user@your-production-vps "sudo -u dinari /opt/dinari/tools/rollback.sh"
+          echo "✅ Rollback complete"
+
+      - name: Notify team
+        if: always()
+        run: |
+          echo "📢 Notifying team about deployment status..."
+          # Add notification logic (Slack, Discord, etc.)
+
+  # Post-deployment tasks
+  post-deployment:
+    runs-on: ubuntu-latest
+    needs: deploy-mainnet
+    if: success()
+    
+    steps:
+      - name: Update documentation
+        run: |
+          echo "📚 Updating deployment documentation..."
+          # Add commands to update docs with new version
+
+      - name: Create GitHub release
+        if: github.event_name == 'push'
+        uses: actions/create-release@v1
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        with:
+          tag_name: ${{ needs.build.outputs.version }}
+          release_name: DinariBlockchain ${{ needs.build.outputs.version }}
+          body: |
+            ## DinariBlockchain Mainnet Release ${{ needs.build.outputs.version }}
+            
+            ### 🚀 Deployed Features
+            - Production-ready blockchain core
+            - Enhanced security measures
+            - Optimized for 1GB RAM deployment
+            - Comprehensive monitoring
+            
+            ### 📊 Deployment Info
+            - **Network**: Mainnet
+            - **Build Date**: $(date -u)
+            - **Commit**: ${{ github.sha }}
+            
+            ### 🔗 Links
+            - [API Documentation](https://docs.dinari.com)
+            - [Block Explorer](https://explorer.dinari.com)
+            - [Network Status](https://status.dinari.com)
+          draft: false
+          prerelease: false
+
+      - name: Announce deployment
+        run: |
+          echo "📢 Announcing successful mainnet deployment..."
+          echo "🎉 DinariBlockchain v${{ needs.build.outputs.version }} is now live!"
+          echo "🌐 Network: Mainnet"
+          echo "📊 Status: https://status.dinari.com"

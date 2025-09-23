@@ -1,0 +1,36 @@
+# DinariBlockchain Minimal Alert Rules - 1GB RAM Optimized
+# Only critical alerts to reduce memory usage
+
+groups:
+  - name: dinari_critical
+    interval: 60s
+    rules:
+      # Instance down
+      - alert: InstanceDown
+        expr: up == 0
+        for: 2m
+        labels:
+          severity: critical
+        annotations:
+          summary: "Instance {{ $labels.instance }} down"
+          description: "{{ $labels.instance }} has been down for more than 2 minutes"
+
+      # High memory usage (critical for 1GB systems)
+      - alert: HighMemoryUsage
+        expr: (1 - node_memory_MemAvailable_bytes / node_memory_MemTotal_bytes) * 100 > 90
+        for: 5m
+        labels:
+          severity: warning
+        annotations:
+          summary: "High memory usage on {{ $labels.instance }}"
+          description: "Memory usage is above 90% on {{ $labels.instance }}"
+
+      # Blockchain specific - no recent blocks
+      - alert: NoRecentBlocks
+        expr: increase(dinari_blocks_total[10m]) == 0
+        for: 10m
+        labels:
+          severity: critical
+        annotations:
+          summary: "No new blocks in 10 minutes"
+          description: "DinariBlockchain hasn't produced blocks in 10 minutes"

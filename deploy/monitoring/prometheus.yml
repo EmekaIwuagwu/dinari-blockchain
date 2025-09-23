@@ -1,0 +1,105 @@
+# DinariBlockchain Prometheus Configuration - 1GB RAM Optimized
+# Minimal monitoring setup for Oracle Cloud Always Free
+
+global:
+  scrape_interval: 60s      # Longer intervals for 1GB RAM
+  evaluation_interval: 60s  # Reduce frequency
+  scrape_timeout: 10s
+  
+  external_labels:
+    monitor: 'dinari-blockchain-lightweight'
+    environment: 'production'
+
+# Minimal rule files
+rule_files:
+  # No complex alerting rules to save memory
+
+# Lightweight scrape configurations
+scrape_configs:
+  # Self-monitoring (minimal)
+  - job_name: 'prometheus'
+    scrape_interval: 120s  # Less frequent self-monitoring
+    static_configs:
+      - targets: ['localhost:9090']
+    metrics_path: /metrics
+    scrape_timeout: 5s
+
+  # DinariBlockchain Validator Nodes
+  - job_name: 'dinari-validator'
+    scrape_interval: 30s   # More frequent for blockchain metrics
+    metrics_path: '/metrics'
+    static_configs:
+      - targets:
+        - 'dinari-validator:9090'
+        - 'validator-1:9090'
+        - 'localhost:9001'  # Local validator if running
+    relabel_configs:
+      - source_labels: [__address__]
+        target_label: instance
+      - source_labels: [__address__]
+        regex: '(.*):(.*)'
+        target_label: __address__
+        replacement: '${1}:${2}'
+
+  # DinariBlockchain RPC Nodes  
+  - job_name: 'dinari-rpc'
+    scrape_interval: 45s   # Less frequent for RPC nodes
+    metrics_path: '/metrics'
+    static_configs:
+      - targets:
+        - 'dinari-rpc:9090'
+        - 'rpc-1:9090'
+        - 'localhost:9002'  # Local RPC if running
+    relabel_configs:
+      - source_labels: [__address__]
+        target_label: instance
+
+  # System metrics (very basic)
+  - job_name: 'node-basic'
+    scrape_interval: 60s
+    static_configs:
+      - targets:
+        - 'localhost:9100'  # If node_exporter available
+    # Only collect essential metrics
+    metric_relabel_configs:
+      - source_labels: [__name__]
+        regex: 'node_(cpu_seconds_total|memory_MemAvailable_bytes|filesystem_avail_bytes|load1)'
+        action: keep
+
+  # Oracle Cloud instances (if accessible)
+  - job_name: 'oracle-instances'
+    scrape_interval: 120s  # Very infrequent
+    static_configs:
+      - targets: []  # Populated by service discovery
+    # Keep only critical metrics
+    metric_relabel_configs:
+      - source_labels: [__name__]
+        regex: '(up|instance_up|cpu_usage|memory_usage)'
+        action: keep
+
+# Minimal alerting configuration (commented out to save resources)
+# alerting:
+#   alertmanagers:
+#     - static_configs:
+#         - targets: []
+
+# Storage optimization for 1GB RAM
+storage:
+  tsdb:
+    # Reduce retention period
+    retention.time: 7d
+    retention.size: 500MB
+    
+    # Optimize for low memory
+    min-block-duration: 2h
+    max-block-duration: 24h
+    wal-compression: true
+    
+    # Reduce memory usage
+    head-chunks-write-queue-size: 1000
+
+# Remote write (disabled to save resources)
+# remote_write: []
+
+# Remote read (disabled to save resources) 
+# remote_read: []

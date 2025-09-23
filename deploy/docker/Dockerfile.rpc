@@ -1,0 +1,66 @@
+# DinariBlockchain RPC Node - 1GB RAM Optimized
+# Minimal RPC container for Oracle Cloud Always Free
+
+FROM python:3.11-slim
+
+# Minimal environment variables
+ENV PYTHONUNBUFFERED=1
+ENV PYTHONDONTWRITEBYTECODE=1
+ENV NODE_TYPE=rpc
+ENV DEBIAN_FRONTEND=noninteractive
+
+# Install only essential dependencies (no nginx, no supervisor)
+RUN apt-get update && apt-get install -y --no-install-recommends \
+    build-essential \
+    libleveldb-dev \
+    libsnappy-dev \
+    pkg-config \
+    curl \
+    && rm -rf /var/lib/apt/lists/* \
+    && apt-get clean
+
+# Create dinari user
+RUN useradd -m -s /bin/bash dinari
+
+# Set working directory
+WORKDIR /app
+
+# Copy requirements and install minimal Python deps
+COPY requirements.txt .
+RUN pip install --no-cache-dir -r requirements.txt \
+    && pip install --no-cache-dir plyvel \
+    && pip cache purge
+
+# Copy application code
+COPY Dinari/ ./Dinari/
+COPY app.py .
+COPY genesis.json .
+
+# Create minimal directories
+RUN mkdir -p /app/data /app/dinari_data && \
+    chown -R dinari:dinari /app
+
+# Expose only essential ports (no nginx)
+EXPOSE 5000 8333
+
+# Simple health check
+HEALTHCHECK --interval=30s --timeout=5s --start-period=20s --retries=2 \
+    CMD curl -f http://localhost:5000/health || exit 1
+
+# Switch to dinari user
+USER dinari
+
+# Minimal environment for RPC (1GB RAM optimized)
+ENV NODE_ID=rpc-node
+ENV P2P_PORT=8333
+ENV API_PORT=5000
+ENV LEVELDB_PATH=/app/dinari_data
+ENV LEVELDB_CACHE_SIZE_MB=32
+ENV MINING_ENABLED=false
+ENV VALIDATOR_ENABLED=false
+ENV RPC_ENABLED=true
+ENV API_RATE_LIMIT=200
+ENV MAX_CONNECTIONS=50
+
+# Direct Python execution (no nginx proxy, no sidecars)
+CMD ["python", "app.py"]

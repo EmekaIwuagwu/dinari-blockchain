@@ -1,0 +1,94 @@
+{
+  "dashboard": {
+    "id": null,
+    "title": "DinariBlockchain - 1GB RAM Dashboard",
+    "tags": ["dinari", "blockchain", "lightweight"],
+    "timezone": "browser",
+    "refresh": "30s",
+    "time": {
+      "from": "now-1h",
+      "to": "now"
+    },
+    "panels": [
+      {
+        "id": 1,
+        "title": "Blockchain Height",
+        "type": "stat",
+        "targets": [
+          {
+            "expr": "dinari_chain_height",
+            "legendFormat": "Block Height"
+          }
+        ],
+        "gridPos": {"h": 8, "w": 12, "x": 0, "y": 0}
+      },
+      {
+        "id": 2,
+        "title": "Total Transactions",
+        "type": "stat", 
+        "targets": [
+          {
+            "expr": "dinari_transactions_total",
+            "legendFormat": "Transactions"
+          }
+        ],
+        "gridPos": {"h": 8, "w": 12, "x": 12, "y": 0}
+      },
+      {
+        "id": 3,
+        "title": "Memory Usage %",
+        "type": "graph",
+        "targets": [
+          {
+            "expr": "(1 - node_memory_MemAvailable_bytes / node_memory_MemTotal_bytes) * 100",
+            "legendFormat": "{{ instance }}"
+          }
+        ],
+        "gridPos": {"h": 8, "w": 24, "x": 0, "y": 8},
+        "yAxes": [
+          {
+            "max": 100,
+            "min": 0,
+            "unit": "percent"
+          }
+        ]
+      },
+      {
+        "id": 4,
+        "title": "Active Validators",
+        "type": "stat",
+        "targets": [
+          {
+            "expr": "dinari_active_validators",
+            "legendFormat": "Validators"
+          }
+        ],
+        "gridPos": {"h": 6, "w": 8, "x": 0, "y": 16}
+      },
+      {
+        "id": 5,
+        "title": "DINARI Supply",
+        "type": "stat",
+        "targets": [
+          {
+            "expr": "dinari_total_supply",
+            "legendFormat": "DINARI"
+          }
+        ],
+        "gridPos": {"h": 6, "w": 8, "x": 8, "y": 16}
+      },
+      {
+        "id": 6,
+        "title": "AFC Supply", 
+        "type": "stat",
+        "targets": [
+          {
+            "expr": "afc_total_supply",
+            "legendFormat": "AFC"
+          }
+        ],
+        "gridPos": {"h": 6, "w": 8, "x": 16, "y": 16}
+      }
+    ]
+  }
+}

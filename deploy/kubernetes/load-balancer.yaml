@@ -1,0 +1,323 @@
+# DinariBlockchain Load Balancer - 1GB RAM Optimized
+# Lightweight configuration for Oracle Cloud Always Free tier
+
+apiVersion: v1
+kind: Service
+metadata:
+  name: dinari-blockchain-lb
+  namespace: dinari-blockchain
+  labels:
+    app.kubernetes.io/name: dinari-blockchain
+    app.kubernetes.io/component: load-balancer
+    tier: lightweight
+  annotations:
+    # Oracle Cloud Load Balancer annotations (Always Free tier friendly)
+    service.beta.kubernetes.io/oci-load-balancer-shape: "10Mbps"
+    service.beta.kubernetes.io/oci-load-balancer-internal: "false"
+spec:
+  type: LoadBalancer
+  selector:
+    app.kubernetes.io/name: dinari-blockchain
+    app.kubernetes.io/component: api
+  ports:
+    - name: http
+      port: 80
+      targetPort: 5000
+      protocol: TCP
+    - name: direct-api
+      port: 5000
+      targetPort: 5000
+      protocol: TCP
+  loadBalancerSourceRanges:
+    - 0.0.0.0/0
+  sessionAffinity: None  # Simplified - no session stickiness
+
+---
+# Ingress for HTTP routing (lightweight alternative to load balancer)
+apiVersion: networking.k8s.io/v1
+kind: Ingress
+metadata:
+  name: dinari-blockchain-ingress
+  namespace: dinari-blockchain
+  labels:
+    app.kubernetes.io/name: dinari-blockchain
+    app.kubernetes.io/component: ingress
+    tier: lightweight
+  annotations:
+    # Lightweight ingress configuration
+    kubernetes.io/ingress.class: "nginx"
+    nginx.ingress.kubernetes.io/rewrite-target: /
+    nginx.ingress.kubernetes.io/proxy-body-size: "1m"  # Limit request size
+    nginx.ingress.kubernetes.io/proxy-connect-timeout: "10"
+    nginx.ingress.kubernetes.io/proxy-send-timeout: "30"
+    nginx.ingress.kubernetes.io/proxy-read-timeout: "30"
+    # Basic rate limiting (lightweight)
+    nginx.ingress.kubernetes.io/limit-rps: "100"
+    nginx.ingress.kubernetes.io/limit-connections: "50"
+spec:
+  rules:
+    - host: dinari-blockchain.local  # Change to your domain
+      http:
+        paths:
+          # Health check endpoint
+          - path: /health
+            pathType: Exact
+            backend:
+              service:
+                name: dinari-rpc-service
+                port:
+                  number: 5000
+          
+          # RPC endpoint
+          - path: /rpc
+            pathType: Exact
+            backend:
+              service:
+                name: dinari-rpc-service
+                port:
+                  number: 5000
+          
+          # API endpoints
+          - path: /api
+            pathType: Prefix
+            backend:
+              service:
+                name: dinari-rpc-service
+                port:
+                  number: 5000
+          
+          # Default - main interface
+          - path: /
+            pathType: Prefix
+            backend:
+              service:
+                name: dinari-rpc-service
+                port:
+                  number: 5000
+
+---
+# Simple NGINX Ingress Controller (minimal resources)
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: nginx-ingress-controller
+  namespace: dinari-blockchain
+  labels:
+    app.kubernetes.io/name: nginx-ingress-controller
+    app.kubernetes.io/component: controller
+    tier: lightweight
+spec:
+  replicas: 1  # Single replica for 1GB instances
+  selector:
+    matchLabels:
+      app.kubernetes.io/name: nginx-ingress-controller
+  template:
+    metadata:
+      labels:
+        app.kubernetes.io/name: nginx-ingress-controller
+        app.kubernetes.io/component: controller
+    spec:
+      containers:
+        - name: nginx-ingress-controller
+          image: nginx/nginx-ingress:3.3.2
+          args:
+            - -nginx-configmaps=$(POD_NAMESPACE)/nginx-config
+            - -default-server-tls-secret=$(POD_NAMESPACE)/default-server-secret
+            - -enable-snippets
+          env:
+            - name: POD_NAMESPACE
+              valueFrom:
+                fieldRef:
+                  fieldPath: metadata.namespace
+            - name: POD_NAME
+              valueFrom:
+                fieldRef:
+                  fieldPath: metadata.name
+          ports:
+            - name: http
+              containerPort: 80
+              protocol: TCP
+            - name: https
+              containerPort: 443
+              protocol: TCP
+            - name: prometheus
+              containerPort: 9113
+              protocol: TCP
+          
+          # Minimal resource allocation for 1GB instances
+          resources:
+            requests:
+              memory: "64Mi"
+              cpu: "50m"
+            limits:
+              memory: "128Mi"  # Very conservative
+              cpu: "200m"
+          
+          # Simple health checks
+          livenessProbe:
+            httpGet:
+              path: /nginx-health
+              port: 8080
+              scheme: HTTP
+            initialDelaySeconds: 30
+            timeoutSeconds: 5
+            periodSeconds: 10
+            successThreshold: 1
+            failureThreshold: 3
+          
+          readinessProbe:
+            httpGet:
+              path: /nginx-ready
+              port: 8080
+              scheme: HTTP
+            initialDelaySeconds: 10
+            timeoutSeconds: 1
+            periodSeconds: 1
+            successThreshold: 1
+            failureThreshold: 3
+          
+          securityContext:
+            allowPrivilegeEscalation: true
+            runAsUser: 101
+            runAsNonRoot: true
+            capabilities:
+              drop:
+                - ALL
+              add:
+                - NET_BIND_SERVICE
+
+---
+# Service for NGINX Ingress Controller
+apiVersion: v1
+kind: Service
+metadata:
+  name: nginx-ingress-controller
+  namespace: dinari-blockchain
+  labels:
+    app.kubernetes.io/name: nginx-ingress-controller
+    app.kubernetes.io/component: controller-service
+spec:
+  type: LoadBalancer
+  ports:
+    - port: 80
+      targetPort: 80
+      protocol: TCP
+      name: http
+    - port: 443
+      targetPort: 443
+      protocol: TCP
+      name: https
+  selector:
+    app.kubernetes.io/name: nginx-ingress-controller
+
+---
+# ConfigMap for NGINX configuration (lightweight)
+apiVersion: v1
+kind: ConfigMap
+metadata:
+  name: nginx-config
+  namespace: dinari-blockchain
+  labels:
+    app.kubernetes.io/name: dinari-blockchain
+    app.kubernetes.io/component: nginx-config
+data:
+  # Minimal NGINX configuration for 1GB RAM
+  worker-processes: "1"
+  worker-connections: "1024"
+  worker-rlimit-nofile: "2048"
+  
+  # Memory optimization
+  client-body-buffer-size: "16k"
+  client-header-buffer-size: "1k"
+  client-max-body-size: "1m"
+  large-client-header-buffers: "4 8k"
+  
+  # Connection optimization
+  keepalive-timeout: "65"
+  keepalive-requests: "100"
+  
+  # Basic security
+  server-tokens: "off"
+  
+  # Minimal logging (save memory)
+  access-log-off: "true"
+  error-log-level: "error"
+
+---
+# Simplified EndpointSlice for service discovery
+apiVersion: discovery.k8s.io/v1
+kind: EndpointSlice
+metadata:
+  name: dinari-rpc-endpoints
+  namespace: dinari-blockchain
+  labels:
+    kubernetes.io/service-name: dinari-rpc-service
+    app.kubernetes.io/name: dinari-blockchain
+    app.kubernetes.io/component: endpoints
+addressType: IPv4
+ports:
+  - name: api
+    port: 5000
+    protocol: TCP
+endpoints:
+  - addresses:
+      - "10.244.0.1"  # Will be dynamically populated
+    conditions:
+      ready: true
+      serving: true
+      terminating: false
+
+---
+# Network Policy (simplified for 1GB RAM)
+apiVersion: networking.k8s.io/v1
+kind: NetworkPolicy
+metadata:
+  name: dinari-lb-network-policy
+  namespace: dinari-blockchain
+  labels:
+    app.kubernetes.io/name: dinari-blockchain
+    app.kubernetes.io/component: lb-network-policy
+spec:
+  podSelector:
+    matchLabels:
+      app.kubernetes.io/name: nginx-ingress-controller
+  policyTypes:
+    - Ingress
+    - Egress
+  ingress:
+    # Allow external HTTP/HTTPS traffic
+    - from: []
+      ports:
+        - protocol: TCP
+          port: 80
+        - protocol: TCP
+          port: 443
+  egress:
+    # Allow communication with RPC nodes
+    - to:
+        - podSelector:
+            matchLabels:
+              app: dinari-rpc
+      ports:
+        - protocol: TCP
+          port: 5000
+
+---
+# Simple service monitor for basic metrics (optional)
+apiVersion: v1
+kind: Service
+metadata:
+  name: dinari-lb-metrics
+  namespace: dinari-blockchain
+  labels:
+    app.kubernetes.io/name: dinari-blockchain
+    app.kubernetes.io/component: lb-metrics
+spec:
+  type: ClusterIP
+  ports:
+    - name: metrics
+      port: 9113
+      targetPort: 9113
+      protocol: TCP
+  selector:
+    app.kubernetes.io/name: nginx-ingress-controller

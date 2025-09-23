@@ -1,0 +1,230 @@
+# DinariBlockchain RPC Node - 1GB RAM Optimized
+# Minimal Kubernetes RPC deployment for Oracle Cloud Always Free
+
+apiVersion: v1
+kind: ConfigMap
+metadata:
+  name: dinari-rpc-config
+  namespace: dinari-blockchain
+  labels:
+    app.kubernetes.io/name: dinari-blockchain
+    app.kubernetes.io/component: rpc-config
+    tier: lightweight
+data:
+  NODE_ENV: "production"
+  LEVELDB_PATH: "/app/dinari_data"
+  LEVELDB_CACHE_SIZE_MB: "32"  # Smaller cache for RPC
+  NODE_TYPE: "rpc"
+  MINING_ENABLED: "false"
+  VALIDATOR_ENABLED: "false"
+  RPC_ENABLED: "true"
+  API_RATE_LIMIT: "200"  # Lower limit for 1GB
+  MAX_CONNECTIONS: "50"  # Reduced connections
+  P2P_PORT: "8333"
+  API_PORT: "5000"
+  NATIVE_TOKEN_SYMBOL: "DINARI"
+  STABLECOIN_SYMBOL: "AFC"
+
+---
+# Simple Secret for RPC
+apiVersion: v1
+kind: Secret
+metadata:
+  name: dinari-rpc-secrets
+  namespace: dinari-blockchain
+type: Opaque
+stringData:
+  API_SECRET_KEY: "your_rpc_secret_key"
+
+---
+# LoadBalancer Service (main public API)
+apiVersion: v1
+kind: Service
+metadata:
+  name: dinari-rpc-service
+  namespace: dinari-blockchain
+  labels:
+    app.kubernetes.io/name: dinari-blockchain
+    app.kubernetes.io/component: rpc-service
+    tier: lightweight
+  annotations:
+    # Oracle Cloud Load Balancer (Always Free tier)
+    service.beta.kubernetes.io/oci-load-balancer-shape: "10Mbps"
+spec:
+  type: LoadBalancer
+  selector:
+    app: dinari-rpc
+  ports:
+    - name: http-api
+      port: 80
+      targetPort: 5000
+      protocol: TCP
+    - name: direct-api
+      port: 5000
+      targetPort: 5000
+      protocol: TCP
+  loadBalancerSourceRanges:
+    - 0.0.0.0/0
+
+---
+# Lightweight RPC Deployment
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: dinari-rpc
+  namespace: dinari-blockchain
+  labels:
+    app.kubernetes.io/name: dinari-blockchain
+    app.kubernetes.io/component: rpc
+    tier: lightweight
+spec:
+  replicas: 1  # Single replica for 1GB RAM
+  strategy:
+    type: Recreate  # Simple strategy, no rolling updates
+  selector:
+    matchLabels:
+      app: dinari-rpc
+  template:
+    metadata:
+      labels:
+        app: dinari-rpc
+        app.kubernetes.io/name: dinari-blockchain
+        tier: lightweight
+    spec:
+      containers:
+        - name: dinari-rpc
+          image: dinari/blockchain:latest
+          imagePullPolicy: IfNotPresent
+          
+          env:
+            - name: NODE_ID
+              valueFrom:
+                fieldRef:
+                  fieldPath: metadata.name
+            - name: POD_IP
+              valueFrom:
+                fieldRef:
+                  fieldPath: status.podIP
+            # Connect to validator for blockchain data
+            - name: BOOTSTRAP_NODES
+              value: "dinari-validator-service:8333"
+          
+          envFrom:
+            - configMapRef:
+                name: dinari-rpc-config
+            - secretRef:
+                name: dinari-rpc-secrets
+          
+          ports:
+            - name: api
+              containerPort: 5000
+            - name: p2p
+              containerPort: 8333
+          
+          volumeMounts:
+            - name: leveldb-storage
+              mountPath: /app/dinari_data
+          
+          # CRITICAL: 1GB RAM limits (smaller than validator)
+          resources:
+            requests:
+              memory: "150Mi"
+              cpu: "50m"
+            limits:
+              memory: "300Mi"  # Max 300MB per RPC pod
+              cpu: "400m"
+          
+          # Simple health checks
+          livenessProbe:
+            httpGet:
+              path: /health
+              port: 5000
+            initialDelaySeconds: 45
+            periodSeconds: 60  # Less frequent
+            timeoutSeconds: 10
+            failureThreshold: 3
+          
+          readinessProbe:
+            httpGet:
+              path: /health
+              port: 5000
+            initialDelaySeconds: 15
+            periodSeconds: 30  # Less frequent
+            timeoutSeconds: 5
+            failureThreshold: 2
+          
+          securityContext:
+            runAsNonRoot: true
+            runAsUser: 1000
+            allowPrivilegeEscalation: false
+      
+      volumes:
+        - name: leveldb-storage
+          emptyDir:
+            sizeLimit: 5Gi  # Smaller storage for RPC
+      
+      # Single node deployment
+      nodeSelector:
+        kubernetes.io/os: linux
+      
+      tolerations:
+        - effect: NoSchedule
+          operator: Exists
+
+---
+# Simple Network Policy (basic security)
+apiVersion: networking.k8s.io/v1
+kind: NetworkPolicy
+metadata:
+  name: dinari-rpc-network-policy
+  namespace: dinari-blockchain
+  labels:
+    app.kubernetes.io/name: dinari-blockchain
+    tier: lightweight
+spec:
+  podSelector:
+    matchLabels:
+      app: dinari-rpc
+  policyTypes:
+    - Ingress
+    - Egress
+  ingress:
+    # Allow external API access
+    - from: []
+      ports:
+        - protocol: TCP
+          port: 5000
+    # Allow P2P from validators
+    - from:
+        - podSelector:
+            matchLabels:
+              app: dinari-validator
+      ports:
+        - protocol: TCP
+          port: 8333
+  egress:
+    # Allow communication with validators
+    - to:
+        - podSelector:
+            matchLabels:
+              app: dinari-validator
+      ports:
+        - protocol: TCP
+          port: 8333
+    # Allow external internet
+    - {}
+
+---
+# Simple PVC for RPC (if persistent storage needed)
+apiVersion: v1
+kind: PersistentVolumeClaim
+metadata:
+  name: dinari-rpc-pvc
+  namespace: dinari-blockchain
+spec:
+  accessModes:
+    - ReadWriteOnce
+  resources:
+    requests:
+      storage: 5Gi  # Smaller than validator
+  storageClassName: standard

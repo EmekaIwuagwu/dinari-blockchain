@@ -1,0 +1,63 @@
+# DinariBlockchain Validator - 1GB RAM Optimized
+# Minimal validator container for Oracle Cloud Always Free
+
+FROM python:3.11-slim
+
+# Minimal environment variables
+ENV PYTHONUNBUFFERED=1
+ENV PYTHONDONTWRITEBYTECODE=1
+ENV NODE_TYPE=validator
+ENV DEBIAN_FRONTEND=noninteractive
+
+# Install only essential dependencies
+RUN apt-get update && apt-get install -y --no-install-recommends \
+    build-essential \
+    libleveldb-dev \
+    libsnappy-dev \
+    pkg-config \
+    curl \
+    && rm -rf /var/lib/apt/lists/* \
+    && apt-get clean
+
+# Create dinari user
+RUN useradd -m -s /bin/bash dinari
+
+# Set working directory
+WORKDIR /app
+
+# Copy requirements and install minimal Python deps
+COPY requirements.txt .
+RUN pip install --no-cache-dir -r requirements.txt \
+    && pip install --no-cache-dir plyvel \
+    && pip cache purge
+
+# Copy application code
+COPY Dinari/ ./Dinari/
+COPY app.py .
+COPY genesis.json .
+
+# Create minimal directories
+RUN mkdir -p /app/data /app/dinari_data && \
+    chown -R dinari:dinari /app
+
+# Expose only essential ports
+EXPOSE 5000 8333
+
+# Simple health check
+HEALTHCHECK --interval=60s --timeout=10s --start-period=30s --retries=2 \
+    CMD curl -f http://localhost:5000/health || exit 1
+
+# Switch to dinari user
+USER dinari
+
+# Minimal environment for 1GB RAM
+ENV NODE_ID=validator-node
+ENV P2P_PORT=8333
+ENV API_PORT=5000
+ENV LEVELDB_PATH=/app/dinari_data
+ENV LEVELDB_CACHE_SIZE_MB=64
+ENV MINING_ENABLED=true
+ENV VALIDATOR_ENABLED=true
+
+# Direct Python execution (no supervisor, no multiple processes)
+CMD ["python", "app.py"]

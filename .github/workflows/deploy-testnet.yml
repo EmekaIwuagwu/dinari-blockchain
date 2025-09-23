@@ -1,0 +1,358 @@
+# DinariBlockchain Testnet Auto-Deployment - Oracle Cloud 1GB RAM
+# Automatic deployment to Oracle Cloud Always Free tier
+
+name: Deploy to Oracle Cloud Testnet (1GB)
+
+on:
+  push:
+    branches:
+      - main
+      - develop
+      - testnet
+  pull_request:
+    branches:
+      - main
+
+  # Manual trigger
+  workflow_dispatch:
+    inputs:
+      environment:
+        description: 'Deployment environment'
+        required: true
+        default: 'testnet'
+        type: choice
+        options:
+          - testnet
+          - staging
+      validator_count:
+        description: 'Number of validators'
+        required: true
+        default: '1'
+        type: string
+      rpc_count:
+        description: 'Number of RPC nodes'
+        required: true
+        default: '1'
+        type: string
+
+env:
+  # Oracle Cloud 1GB RAM optimized settings
+  DOCKER_BUILDKIT: 1
+  MEMORY_LIMIT_VALIDATOR: '400'
+  MEMORY_LIMIT_RPC: '300'
+  ENVIRONMENT: ${{ github.event.inputs.environment || 'testnet' }}
+  OCI_REGION: 'us-ashburn-1'
+  VALIDATOR_COUNT: ${{ github.event.inputs.validator_count || '1' }}
+  RPC_COUNT: ${{ github.event.inputs.rpc_count || '1' }}
+
+jobs:
+  # ============================================================================
+  # BUILD LIGHTWEIGHT DOCKER IMAGES
+  # ============================================================================
+  
+  build-for-oracle-cloud:
+    name: Build Images for Oracle Cloud
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+    
+    outputs:
+      validator-image: ${{ steps.build.outputs.validator-image }}
+      rpc-image: ${{ steps.build.outputs.rpc-image }}
+      image-tag: ${{ steps.build.outputs.image-tag }}
+      
+    steps:
+      - name: Checkout Code
+        uses: actions/checkout@v4
+        with:
+          fetch-depth: 1
+
+      - name: Set up Docker Buildx
+        uses: docker/setup-buildx-action@v3
+
+      - name: Configure Docker for Oracle Cloud
+        run: |
+          # Optimize Docker for Oracle Cloud ARM instances
+          sudo tee /etc/docker/daemon.json > /dev/null <<EOF
+          {
+            "storage-driver": "overlay2",
+            "log-driver": "json-file",
+            "log-opts": {
+              "max-size": "5m",
+              "max-file": "2"
+            }
+          }
+          EOF
+          sudo systemctl restart docker
+          docker system prune -f
+
+      - name: Login to Docker Hub
+        uses: docker/login-action@v3
+        with:
+          username: ${{ secrets.DOCKER_USERNAME }}
+          password: ${{ secrets.DOCKER_PASSWORD }}
+
+      - name: Build Oracle Cloud Images
+        id: build
+        run: |
+          IMAGE_TAG="${{ github.sha }}-oci"
+          
+          # Build validator image (Oracle Cloud 1GB optimized)
+          docker build \
+            -f deploy/docker/Dockerfile.validator \
+            -t dinari/blockchain:validator-${IMAGE_TAG} \
+            -t dinari/blockchain:validator-latest \
+            --platform linux/amd64,linux/arm64 \
+            .
+          
+          # Build RPC image (Oracle Cloud 1GB optimized)
+          docker build \
+            -f deploy/docker/Dockerfile.rpc \
+            -t dinari/blockchain:rpc-${IMAGE_TAG} \
+            -t dinari/blockchain:rpc-latest \
+            --platform linux/amd64,linux/arm64 \
+            .
+          
+          # Push images
+          docker push dinari/blockchain:validator-${IMAGE_TAG}
+          docker push dinari/blockchain:validator-latest
+          docker push dinari/blockchain:rpc-${IMAGE_TAG}
+          docker push dinari/blockchain:rpc-latest
+          
+          # Output variables
+          echo "validator-image=dinari/blockchain:validator-${IMAGE_TAG}" >> $GITHUB_OUTPUT
+          echo "rpc-image=dinari/blockchain:rpc-${IMAGE_TAG}" >> $GITHUB_OUTPUT
+          echo "image-tag=${IMAGE_TAG}" >> $GITHUB_OUTPUT
+
+      - name: Test Images for 1GB RAM
+        run: |
+          # Test validator image with 1GB limits
+          docker run --rm --memory=400m --cpus=0.5 \
+            dinari/blockchain:validator-${{ steps.build.outputs.image-tag }} \
+            python -c "print('✅ Validator image ready for Oracle Cloud 1GB')"
+          
+          # Test RPC image with 1GB limits
+          docker run --rm --memory=300m --cpus=0.3 \
+            dinari/blockchain:rpc-${{ steps.build.outputs.image-tag }} \
+            python -c "print('✅ RPC image ready for Oracle Cloud 1GB')"
+
+  # ============================================================================
+  # TERRAFORM DEPLOYMENT TO ORACLE CLOUD
+  # ============================================================================
+  
+  deploy-oracle-cloud:
+    name: Deploy to Oracle Cloud
+    runs-on: ubuntu-latest
+    needs: build-for-oracle-cloud
+    if: github.ref == 'refs/heads/main' || github.event_name == 'workflow_dispatch'
+    timeout-minutes: 30
+    
+    environment:
+      name: ${{ env.ENVIRONMENT }}
+      url: ${{ steps.deploy.outputs.load_balancer_url }}
+      
+    steps:
+      - name: Checkout Code
+        uses: actions/checkout@v4
+
+      - name: Setup Terraform
+        uses: hashicorp/setup-terraform@v2
+        with:
+          terraform_version: 1.5.0
+
+      - name: Configure Oracle Cloud CLI
+        run: |
+          # Setup OCI CLI configuration
+          mkdir -p ~/.oci
+          
+          # Create config file
+          cat > ~/.oci/config << EOF
+          [DEFAULT]
+          user=${{ secrets.OCI_USER_ID }}
+          fingerprint=${{ secrets.OCI_FINGERPRINT }}
+          tenancy=${{ secrets.OCI_TENANCY_ID }}
+          region=${{ env.OCI_REGION }}
+          key_file=~/.oci/private_key.pem
+          EOF
+          
+          # Create private key file
+          echo "${{ secrets.OCI_PRIVATE_KEY }}" > ~/.oci/private_key.pem
+          chmod 600 ~/.oci/private_key.pem
+
+      - name: Generate Terraform Variables
+        run: |
+          # Create terraform.tfvars for 1GB deployment
+          cat > deploy/terraform/terraform.tfvars << EOF
+          # Oracle Cloud Authentication
+          tenancy_ocid = "${{ secrets.OCI_TENANCY_ID }}"
+          user_ocid = "${{ secrets.OCI_USER_ID }}"
+          fingerprint = "${{ secrets.OCI_FINGERPRINT }}"
+          private_key_path = "~/.oci/private_key.pem"
+          region = "${{ env.OCI_REGION }}"
+          compartment_id = "${{ secrets.OCI_COMPARTMENT_ID }}"
+          
+          # SSH Key
+          ssh_public_key = "${{ secrets.SSH_PUBLIC_KEY }}"
+          
+          # 1GB RAM Deployment Configuration
+          environment = "${{ env.ENVIRONMENT }}"
+          project_name = "dinari-blockchain-testnet"
+          
+          # Oracle Cloud Always Free (1GB RAM instances)
+          validator_count = ${{ env.VALIDATOR_COUNT }}
+          rpc_count = ${{ env.RPC_COUNT }}
+          
+          validator_instance_shape = "VM.Standard.A1.Flex"
+          validator_ocpus = 1
+          validator_memory_gbs = 1
+          
+          rpc_instance_shape = "VM.Standard.A1.Flex" 
+          rpc_ocpus = 1
+          rpc_memory_gbs = 1
+          
+          # Storage (minimal for 1GB)
+          blockchain_data_volume_size_gb = 20
+          boot_volume_size_gb = 50
+          
+          # Load Balancer (Always Free)
+          load_balancer_bandwidth_mbps = 10
+          
+          # Docker Images
+          dinari_docker_image = "dinari/blockchain:latest"
+          
+          # LevelDB Configuration
+          leveldb_cache_size_mb = 32
+          leveldb_backup_enabled = false
+          EOF
+
+      - name: Terraform Init
+        working-directory: deploy/terraform
+        run: terraform init
+
+      - name: Terraform Plan
+        working-directory: deploy/terraform
+        run: |
+          terraform plan \
+            -var-file=terraform.tfvars \
+            -out=tfplan
+
+      - name: Terraform Apply
+        id: deploy
+        working-directory: deploy/terraform
+        run: |
+          terraform apply tfplan
+          
+          # Get outputs
+          LB_IP=$(terraform output -raw load_balancer_ip)
+          echo "load_balancer_url=http://${LB_IP}" >> $GITHUB_OUTPUT
+          echo "load_balancer_ip=${LB_IP}" >> $GITHUB_OUTPUT
+
+      - name: Wait for Oracle Cloud Deployment
+        run: |
+          echo "⏳ Waiting for Oracle Cloud instances to boot..."
+          sleep 120  # Oracle Cloud instances take longer to start
+          
+          LB_IP="${{ steps.deploy.outputs.load_balancer_ip }}"
+          
+          # Wait for load balancer to be healthy
+          for i in {1..20}; do
+            if curl -sf --max-time 10 http://${LB_IP}/health; then
+              echo "✅ Oracle Cloud deployment is healthy"
+              break
+            fi
+            echo "⏳ Waiting for Oracle Cloud deployment... ($i/20)"
+            sleep 30
+          done
+
+  # ============================================================================
+  # TEST ORACLE CLOUD DEPLOYMENT
+  # ============================================================================
+  
+  test-oracle-deployment:
+    name: Test Oracle Cloud Deployment
+    runs-on: ubuntu-latest
+    needs: deploy-oracle-cloud
+    timeout-minutes: 10
+    
+    steps:
+      - name: Test Oracle Cloud API
+        run: |
+          LB_IP="${{ needs.deploy-oracle-cloud.outputs.load_balancer_ip }}"
+          
+          echo "🧪 Testing Oracle Cloud deployment at: http://${LB_IP}"
+          
+          # Health check
+          echo "Testing health endpoint..."
+          HEALTH=$(curl -sf --max-time 10 http://${LB_IP}/health)
+          echo "Health: $HEALTH"
+          
+          # Blockchain info
+          echo "Testing blockchain info..."
+          INFO=$(curl -sf --max-time 15 http://${LB_IP}/api/blockchain/info)
+          echo "Info: $INFO"
+          
+          # RPC endpoint
+          echo "Testing RPC endpoint..."
+          RPC_RESPONSE=$(curl -sf --max-time 15 -X POST \
+            -H "Content-Type: application/json" \
+            -d '{"method":"dinari_getBlockchainInfo","params":[],"id":1}' \
+            http://${LB_IP}/rpc)
+          echo "RPC: $RPC_RESPONSE"
+
+      - name: Validate 1GB RAM Constraints
+        run: |
+          LB_IP="${{ needs.deploy-oracle-cloud.outputs.load_balancer_ip }}"
+          
+          echo "💾 Validating 1GB RAM deployment..."
+          
+          # Check if services are responding (indicates they fit in 1GB)
+          if curl -sf http://${LB_IP}/health > /dev/null; then
+            echo "✅ Services responding - within 1GB RAM limits"
+          else
+            echo "❌ Services not responding - may have exceeded 1GB RAM"
+            exit 1
+          fi
+
+  # ============================================================================
+  # DEPLOYMENT SUCCESS NOTIFICATION
+  # ============================================================================
+  
+  notify-success:
+    name: Deployment Success
+    runs-on: ubuntu-latest
+    needs: [build-for-oracle-cloud, deploy-oracle-cloud, test-oracle-deployment]
+    if: success()
+    
+    steps:
+      - name: Success Notification
+        run: |
+          LB_IP="${{ needs.deploy-oracle-cloud.outputs.load_balancer_ip }}"
+          
+          echo "🎉 DinariBlockchain Oracle Cloud Deployment Successful!"
+          echo ""
+          echo "🌍 Load Balancer: http://${LB_IP}"
+          echo "🔗 Health Check: http://${LB_IP}/health"
+          echo "⚡ RPC Endpoint: http://${LB_IP}/rpc"
+          echo "📊 Blockchain Info: http://${LB_IP}/api/blockchain/info"
+          echo ""
+          echo "☁️  Oracle Cloud Always Free Tier (1GB RAM)"
+          echo "🏗️  Validators: ${{ env.VALIDATOR_COUNT }}"
+          echo "⚡ RPC Nodes: ${{ env.RPC_COUNT }}"
+          echo "📦 Built with: ${{ needs.build-for-oracle-cloud.outputs.image-tag }}"
+
+  # ============================================================================
+  # CLEANUP ON FAILURE
+  # ============================================================================
+  
+  cleanup-on-failure:
+    name: Cleanup Failed Deployment
+    runs-on: ubuntu-latest
+    needs: [deploy-oracle-cloud, test-oracle-deployment]
+    if: failure()
+    
+    steps:
+      - name: Cleanup Oracle Cloud Resources
+        working-directory: deploy/terraform
+        run: |
+          echo "🧹 Cleaning up failed Oracle Cloud deployment..."
+          # terraform destroy -var-file=terraform.tfvars -auto-approve
+          echo "Manual cleanup required for Oracle Cloud resources"

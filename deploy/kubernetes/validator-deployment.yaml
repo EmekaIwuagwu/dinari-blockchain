@@ -1,0 +1,172 @@
+# DinariBlockchain Validator - 1GB RAM Optimized
+# Minimal Kubernetes deployment for Oracle Cloud Always Free
+
+apiVersion: v1
+kind: Namespace
+metadata:
+  name: dinari-blockchain
+  labels:
+    app.kubernetes.io/name: dinari-blockchain
+    tier: lightweight
+
+---
+# Minimal ConfigMap
+apiVersion: v1
+kind: ConfigMap
+metadata:
+  name: dinari-validator-config
+  namespace: dinari-blockchain
+data:
+  NODE_ENV: "production"
+  LEVELDB_PATH: "/app/dinari_data"
+  LEVELDB_CACHE_SIZE_MB: "64"
+  MINING_ENABLED: "true"
+  VALIDATOR_ENABLED: "true"
+  P2P_PORT: "8333"
+  API_PORT: "5000"
+  NATIVE_TOKEN_SYMBOL: "DINARI"
+  STABLECOIN_SYMBOL: "AFC"
+
+---
+# Simple Secret
+apiVersion: v1
+kind: Secret
+metadata:
+  name: dinari-validator-secrets
+  namespace: dinari-blockchain
+type: Opaque
+stringData:
+  API_SECRET_KEY: "your_secure_secret_key"
+
+---
+# Minimal Service
+apiVersion: v1
+kind: Service
+metadata:
+  name: dinari-validator-service
+  namespace: dinari-blockchain
+spec:
+  type: ClusterIP
+  selector:
+    app: dinari-validator
+  ports:
+    - name: api
+      port: 5000
+      targetPort: 5000
+    - name: p2p
+      port: 8333
+      targetPort: 8333
+
+---
+# Lightweight Deployment (NOT StatefulSet)
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: dinari-validator
+  namespace: dinari-blockchain
+  labels:
+    app.kubernetes.io/name: dinari-blockchain
+    app.kubernetes.io/component: validator
+    tier: lightweight
+spec:
+  replicas: 1  # Single replica for 1GB
+  selector:
+    matchLabels:
+      app: dinari-validator
+  template:
+    metadata:
+      labels:
+        app: dinari-validator
+        app.kubernetes.io/name: dinari-blockchain
+        tier: lightweight
+    spec:
+      containers:
+        - name: dinari-validator
+          image: dinari/blockchain:latest
+          imagePullPolicy: IfNotPresent
+          
+          env:
+            - name: NODE_ID
+              valueFrom:
+                fieldRef:
+                  fieldPath: metadata.name
+            - name: NODE_TYPE
+              value: "validator"
+          
+          envFrom:
+            - configMapRef:
+                name: dinari-validator-config
+            - secretRef:
+                name: dinari-validator-secrets
+          
+          ports:
+            - name: api
+              containerPort: 5000
+            - name: p2p
+              containerPort: 8333
+          
+          volumeMounts:
+            - name: leveldb-storage
+              mountPath: /app/dinari_data
+          
+          # CRITICAL: 1GB RAM limits
+          resources:
+            requests:
+              memory: "200Mi"
+              cpu: "100m"
+            limits:
+              memory: "400Mi"  # Max 400MB per pod
+              cpu: "500m"
+          
+          # Simple health checks
+          livenessProbe:
+            httpGet:
+              path: /health
+              port: 5000
+            initialDelaySeconds: 60
+            periodSeconds: 60  # Less frequent
+            timeoutSeconds: 10
+            failureThreshold: 3
+          
+          readinessProbe:
+            httpGet:
+              path: /health
+              port: 5000
+            initialDelaySeconds: 30
+            periodSeconds: 30  # Less frequent
+            timeoutSeconds: 5
+            failureThreshold: 2
+          
+          securityContext:
+            runAsNonRoot: true
+            runAsUser: 1000
+            allowPrivilegeEscalation: false
+      
+      volumes:
+        - name: leveldb-storage
+          emptyDir:
+            sizeLimit: 10Gi  # LevelDB storage limit
+      
+      # Single node deployment
+      nodeSelector:
+        kubernetes.io/os: linux
+      
+      # No complex affinity rules
+      tolerations:
+        - effect: NoSchedule
+          operator: Exists
+
+---
+# Simple PVC (if persistent storage needed)
+apiVersion: v1
+kind: PersistentVolumeClaim
+metadata:
+  name: dinari-validator-pvc
+  namespace: dinari-blockchain
+spec:
+  accessModes:
+    - ReadWriteOnce
+  resources:
+    requests:
+      storage: 10Gi  # Minimal storage
+  storageClassName: standard

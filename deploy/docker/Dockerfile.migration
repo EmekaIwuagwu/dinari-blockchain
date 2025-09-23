@@ -1,0 +1,55 @@
+# DinariBlockchain Migration - 1GB RAM Optimized  
+# Lightweight migration container for LevelDB setup
+
+FROM python:3.11-slim
+
+# Minimal environment variables
+ENV PYTHONUNBUFFERED=1
+ENV PYTHONDONTWRITEBYTECODE=1
+ENV DEBIAN_FRONTEND=noninteractive
+
+# Install only migration essentials
+RUN apt-get update && apt-get install -y --no-install-recommends \
+    build-essential \
+    libleveldb-dev \
+    libsnappy-dev \
+    pkg-config \
+    curl \
+    && rm -rf /var/lib/apt/lists/* \
+    && apt-get clean
+
+# Create migrator user
+RUN useradd -m -s /bin/bash migrator
+
+# Set working directory
+WORKDIR /migration
+
+# Copy requirements and install minimal deps
+COPY requirements.txt .
+RUN pip install --no-cache-dir -r requirements.txt \
+    && pip install --no-cache-dir plyvel \
+    && pip cache purge
+
+# Copy migration scripts and blockchain code
+COPY deploy/database/ ./database/
+COPY Dinari/ ./Dinari/
+COPY genesis.json .
+
+# Create directories
+RUN mkdir -p /migration/data /migration/logs && \
+    chown -R migrator:migrator /migration
+
+# Simple health check
+HEALTHCHECK --interval=30s --timeout=10s --start-period=10s --retries=2 \
+    CMD test -f /migration/logs/migration_complete.flag || exit 1
+
+# Switch to migrator user
+USER migrator
+
+# Minimal migration environment
+ENV MIGRATION_MODE=leveldb_setup
+ENV LEVELDB_SOURCE_PATH=/migration/leveldb_source
+ENV PRESERVE_LEVELDB=true
+
+# Simple migration command (no complex entrypoint)
+CMD ["python", "-c", "print('LevelDB migration container ready'); import time; time.sleep(3600)"]
