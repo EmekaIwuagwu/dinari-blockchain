@@ -12,9 +12,9 @@ Dinari Blockchain is a complete blockchain implementation built in Python, speci
 ## 🚀 Key Features
 
 ### 🏦 Stablecoin Infrastructure
-- **💰 DINARI Token**: Native stablecoin with multi-currency pegging
+- **💰 DINARI Token**: Native USD-pegged stablecoin (1 DINARI = 1 USD)
 - **📊 Price Stability**: Advanced algorithmic and collateralized mechanisms
-- **💱 Multi-Peg Support**: USD, EUR, and African currency baskets
+- **💱 USD Peg**: Stable 1:1 peg with US Dollar
 - **⚖️ Reserve Management**: Automated collateral ratio maintenance
 
 ### ⚡ Core Blockchain Technology
@@ -416,18 +416,19 @@ remittance = contract_manager.deploy_from_template(
     {
         'source_country': 'Nigeria',
         'target_country': 'Ghana',
-        'exchange_rate_oracle': oracle_address,
+        'base_currency': 'USD',  # All conversions through USD
+        'price_oracle': oracle_address,
         'compliance_module': kyc_contract_address
     }
 )
 
-# Send remittance
+# Send remittance (local currency converted to DINARI/USD)
 contract_manager.call_contract(
     remittance.address,
     'send_remittance',
-    [recipient_id, 'GHS', local_amount],
+    [recipient_id, 'Ghana', usd_equivalent_amount],
     sender,
-    {'value': afrc_amount, 'kyc_verified': True}
+    {'value': dinari_amount, 'kyc_verified': True}
 )
 ```
 
@@ -491,24 +492,21 @@ contract_manager.call_contract(
 ```python
 from Dinari import StablecoinManager, PriceOracle
 
-# Initialize stablecoin with multi-peg support
+# Initialize stablecoin with USD peg
 stablecoin = StablecoinManager(
     blockchain,
-    base_pegs={
-        'USD': 1.0,      # 1 DINARI = 1 USD
-        'EUR': 0.85,     # 1 DINARI = 0.85 EUR  
-        'GHS': 12.0,     # 1 DINARI = 12 GHS
-        'NGN': 460.0,    # 1 DINARI = 460 NGN
-        'KES': 115.0     # 1 DINARI = 115 KES
-    }
+    peg_currency='USD',
+    target_price=1.0,  # 1 DINARI = 1 USD
+    price_oracle_feeds=['chainlink_usd', 'coinbase_usd', 'binance_usd']
 )
 
 # Configure stability mechanisms
 stablecoin.configure_stability(
-    collateral_ratio_target=150,  # 150% backing
-    rebalance_threshold=5,        # 5% price deviation
-    emergency_shutdown_threshold=20,  # 20% deviation triggers shutdown
-    stability_fee=2.5            # 2.5% annual stability fee
+    target_price=1.0,                    # 1 USD target
+    collateral_ratio_target=150,         # 150% backing
+    rebalance_threshold=5,               # 5% price deviation triggers rebalancing
+    emergency_shutdown_threshold=20,     # 20% deviation triggers emergency shutdown
+    stability_fee=2.5                    # 2.5% annual stability fee
 )
 
 # Add collateral types
@@ -524,11 +522,11 @@ from Dinari import CrossBorderPayment, ComplianceEngine
 # Initialize cross-border payment system
 cross_border = CrossBorderPayment(blockchain)
 
-# Configure African corridors
+# Configure African corridors with USD-DINARI conversion
 corridors = [
-    {'from': 'Nigeria', 'to': 'Ghana', 'fee': 0.5, 'time': 300},      # 5 minutes
-    {'from': 'Kenya', 'to': 'Uganda', 'fee': 0.3, 'time': 180},      # 3 minutes
-    {'from': 'South Africa', 'to': 'Botswana', 'fee': 0.4, 'time': 240}  # 4 minutes
+    {'from': 'Nigeria', 'to': 'Ghana', 'base_currency': 'USD', 'fee': 0.5, 'time': 300},      # 5 minutes
+    {'from': 'Kenya', 'to': 'Uganda', 'base_currency': 'USD', 'fee': 0.3, 'time': 180},       # 3 minutes
+    {'from': 'South Africa', 'to': 'Botswana', 'base_currency': 'USD', 'fee': 0.4, 'time': 240}  # 4 minutes
 ]
 
 for corridor in corridors:
@@ -647,8 +645,9 @@ scaling_config = {
   },
   "stablecoin": {
     "enabled": true,
-    "primary_peg": "USD",
-    "peg_currencies": ["USD", "EUR", "GHS", "NGN", "KES", "ZAR"],
+    "peg_currency": "USD",
+    "target_price": 1.0,
+    "price_deviation_threshold": 0.05,
     "collateral_ratio": 150,
     "stability_mechanisms": ["algorithmic", "collateralized"]
   },
@@ -1037,8 +1036,8 @@ class DinariWalletAPI {
         return await this.makeRPCCall('getTontineContracts', [userAddress]);
     }
 
-    async getCrossBorderRates(fromCountry, toCountry) {
-        return await this.makeRPCCall('getCrossBorderRates', [fromCountry, toCountry]);
+    async getUSDConversionRates(targetCountry) {
+        return await this.makeRPCCall('getUSDConversionRates', [targetCountry]);
     }
 }
 
@@ -1113,13 +1112,16 @@ def get_tontine_contracts(address):
     contracts = blockchain.get_user_contracts(address, contract_type='tontine')
     return jsonify({'contracts': contracts})
 
-@app.route('/api/v1/african/cross-border-rates', methods=['GET'])
-def get_cross_border_rates():
-    """Get current cross-border exchange rates"""
-    from_country = request.args.get('from')
-    to_country = request.args.get('to')
-    rates = blockchain.get_cross_border_rates(from_country, to_country)
-    return jsonify({'rates': rates})
+@app.route('/api/v1/african/usd-conversion-rates', methods=['GET'])
+def get_usd_conversion_rates():
+    """Get current USD to local currency conversion rates"""
+    target_country = request.args.get('country')
+    rates = blockchain.get_usd_conversion_rates(target_country)
+    return jsonify({
+        'base_currency': 'USD', 
+        'target_country': target_country,
+        'rates': rates
+    })
 ```
 
 ## 🤝 Community & Governance
