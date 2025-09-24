@@ -1,0 +1,89 @@
+#cloud-config
+package_update: true
+
+packages:
+  - docker.io
+  - git
+  - python3
+  - python3-pip
+  - build-essential
+  - libleveldb-dev
+
+runcmd:
+  - systemctl start docker
+  - systemctl enable docker
+  - usermod -aG docker ubuntu
+  
+  # Clone from CORRECT GitHub repository
+  - git clone https://github.com/EmekaIwuagwu/dinari-blockchain.git /opt/dinari-blockchain
+  - cd /opt/dinari-blockchain
+  
+  # Install Python dependencies
+  - pip3 install -r requirements.txt
+  
+  # Create blockchain data directory
+  - mkdir -p /opt/dinari-blockchain/blockchain_data
+  
+  # Copy .env file (create basic one if missing)
+  - |
+    if [ ! -f /opt/dinari-blockchain/.env ]; then
+      cat > /opt/dinari-blockchain/.env << 'ENVEOF'
+    # Basic DinariBlockchain Configuration
+    BLOCKCHAIN_NAME=DinariBlockchain
+    BLOCKCHAIN_VERSION=1.0.0
+    BLOCKCHAIN_NETWORK=mainnet
+    NODE_ENV=production
+    FLASK_ENV=production
+    
+    NODE_TYPE=validator
+    NODE_ID=dinari-validator-1
+    P2P_PORT=8333
+    API_PORT=5000
+    HOST=0.0.0.0
+    
+    LEVELDB_CACHE_SIZE_MB=32
+    MAX_CONNECTIONS=5
+    MINING_ENABLED=true
+    AUTO_MINING=true
+    BLOCK_TIME=10
+    
+    DATABASE_TYPE=leveldb
+    LEVELDB_PATH=/opt/dinari-blockchain/blockchain_data
+    
+    LOG_LEVEL=INFO
+    DEBUG=false
+    ENVEOF
+    fi
+  
+  # Start blockchain with nohup
+  - cd /opt/dinari-blockchain
+  - nohup python3 app.py > /var/log/dinari-blockchain.log 2>&1 &
+  
+  # Log completion
+  - echo "DinariBlockchain started with correct repo" >> /var/log/cloud-init-output.log
+
+write_files:
+  - path: /etc/systemd/system/dinari-blockchain.service
+    content: |
+      [Unit]
+      Description=Dinari Blockchain Service
+      After=network.target
+      
+      [Service]
+      Type=simple
+      User=ubuntu
+      WorkingDirectory=/opt/dinari-blockchain
+      ExecStart=/usr/bin/python3 app.py
+      Restart=always
+      Environment=LEVELDB_PATH=/opt/dinari-blockchain/blockchain_data
+      Environment=FLASK_ENV=production
+      Environment=BLOCKCHAIN_NETWORK=mainnet
+      Environment=P2P_PORT=8333
+      Environment=API_PORT=5000
+      Environment=ENABLE_MINING=true
+      
+      [Install]
+      WantedBy=multi-user.target
+    permissions: '0644'
+
+final_message: "DinariBlockchain deployment completed with correct GitHub repo!"

@@ -78,8 +78,8 @@
   },
   "block_index:0": "f9e1240c9aa7338c218761797f22273937a61a5a21046118b1eb5555e88af48e",
   "chain_state": {
-    "height": 8,
-    "last_block_hash": "DTxf9a20397a6838b4a615b98f7b061d75b031fc71877e273d4ef4efbcaf702966c",
+    "height": 12,
+    "last_block_hash": "DTxb78be88aff2d486a012be97e254a7941ae4fc71fad10becbbbefa1c628b8c416",
     "total_dinari_supply": "100000000",
     "total_transactions": 5,
     "contract_count": 1
@@ -100,7 +100,7 @@
       "code": "Afrocoin USD Stablecoin Contract",
       "owner": "genesis",
       "contract_type": "afrocoin_stablecoin",
-      "created_at": 1758579462,
+      "created_at": 1758642613,
       "state": {
         "variables": {
           "name": "Afrocoin",
@@ -231,5 +231,53 @@
     "gas_limit": 10000000,
     "hash": "DTxf9a20397a6838b4a615b98f7b061d75b031fc71877e273d4ef4efbcaf702966c"
   },
-  "block_index:7": "DTxf9a20397a6838b4a615b98f7b061d75b031fc71877e273d4ef4efbcaf702966c"
+  "block_index:7": "DTxf9a20397a6838b4a615b98f7b061d75b031fc71877e273d4ef4efbcaf702966c",
+  "block:DTxd82fa4a99758528b9219cf0c1269d0e7a5ba67d1a5d73ea7b3320100a56347ee": {
+    "index": 8,
+    "transactions": [],
+    "timestamp": 1758626424,
+    "previous_hash": "DTxf9a20397a6838b4a615b98f7b061d75b031fc71877e273d4ef4efbcaf702966c",
+    "nonce": 0,
+    "validator": "DTvalidator3c4d5e6f7g8h9i0j1k2l3m4n5o6p7q8r9s0",
+    "gas_used": 0,
+    "gas_limit": 10000000,
+    "hash": "DTxd82fa4a99758528b9219cf0c1269d0e7a5ba67d1a5d73ea7b3320100a56347ee"
+  },
+  "block_index:8": "DTxd82fa4a99758528b9219cf0c1269d0e7a5ba67d1a5d73ea7b3320100a56347ee",
+  "block:DTxdf10076ef16a69a73597cb1ccc91534cdb784a1eb1c6619f3a8e700bd46f6819": {
+    "index": 9,
+    "transactions": [],
+    "timestamp": 1758642628,
+    "previous_hash": "DTxd82fa4a99758528b9219cf0c1269d0e7a5ba67d1a5d73ea7b3320100a56347ee",
+    "nonce": 0,
+    "validator": "DTvalidator1a2b3c4d5e6f7g8h9i0j1k2l3m4n5o6p7q8",
+    "gas_used": 0,
+    "gas_limit": 10000000,
+    "hash": "DTxdf10076ef16a69a73597cb1ccc91534cdb784a1eb1c6619f3a8e700bd46f6819"
+  },
+  "block_index:9": "DTxdf10076ef16a69a73597cb1ccc91534cdb784a1eb1c6619f3a8e700bd46f6819",
+  "block:DTx502e68f94bf44a222a8a35c5fb1b5dbe306a7ee88f0d78b219b8d6dd9d4c51ab": {
+    "index": 10,
+    "transactions": [],
+    "timestamp": 1758642643,
+    "previous_hash": "DTxdf10076ef16a69a73597cb1ccc91534cdb784a1eb1c6619f3a8e700bd46f6819",
+    "nonce": 0,
+    "validator": "DTvalidator2b3c4d5e6f7g8h9i0j1k2l3m4n5o6p7q8r9",
+    "gas_used": 0,
+    "gas_limit": 10000000,
+    "hash": "DTx502e68f94bf44a222a8a35c5fb1b5dbe306a7ee88f0d78b219b8d6dd9d4c51ab"
+  },
+  "block_index:10": "DTx502e68f94bf44a222a8a35c5fb1b5dbe306a7ee88f0d78b219b8d6dd9d4c51ab",
+  "block:DTxb78be88aff2d486a012be97e254a7941ae4fc71fad10becbbbefa1c628b8c416": {
+    "index": 11,
+    "transactions": [],
+    "timestamp": 1758642658,
+    "previous_hash": "DTx502e68f94bf44a222a8a35c5fb1b5dbe306a7ee88f0d78b219b8d6dd9d4c51ab",
+    "nonce": 0,
+    "validator": "DTvalidator3c4d5e6f7g8h9i0j1k2l3m4n5o6p7q8r9s0",
+    "gas_used": 0,
+    "gas_limit": 10000000,
+    "hash": "DTxb78be88aff2d486a012be97e254a7941ae4fc71fad10becbbbefa1c628b8c416"
+  },
+  "block_index:11": "DTxb78be88aff2d486a012be97e254a7941ae4fc71fad10becbbbefa1c628b8c416"
 }
