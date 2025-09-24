@@ -12,16 +12,16 @@ BLUE='\033[0;34m'
 NC='\033[0m' # No Color
 
 # Configuration
-APP_NAME="afrocoin-blockchain"
+APP_NAME="dinari-blockchain"
 APP_USER="ubuntu"
-APP_DIR="/opt/afrocoin"
-LOG_DIR="/var/log/afrocoin"
-DATA_DIR="/var/lib/afrocoin"
-SERVICE_NAME="afrocoin-node"
+APP_DIR="/opt/dinari-blockchain"
+LOG_DIR="/var/log/dinari-blockchain"
+DATA_DIR="/var/lib/dinari-blockchain"
+SERVICE_NAME="dinari-blockchain-node"
 PORT=5000
 P2P_PORT=8333
 
-echo -e "${BLUE}🚀 Afrocoin Blockchain Permanent Deployment${NC}"
+echo -e "${BLUE}🚀 Dinari-Blockchain Permanent Deployment${NC}"
 echo -e "${BLUE}This script sets up systemd service, monitoring, and auto-restart${NC}"
 
 # Function to print colored output
@@ -72,7 +72,7 @@ EOF
 
 # Setup blockchain application
 setup_blockchain() {
-    log_info "Setting up Afrocoin blockchain application..."
+    log_info "Setting up Dinari-blockchain application..."
     
     # Create directories
     mkdir -p $APP_DIR $LOG_DIR $DATA_DIR
@@ -112,9 +112,9 @@ create_env_file() {
     log_info "Creating production environment file..."
     
     cat > $APP_DIR/.env << 'EOF'
-# Afrocoin Blockchain Production Environment
+# Dinari-Blockchain Production Environment
 NODE_ENV=production
-AFROCOIN_DEBUG=false
+DINARI_DEBUG=false
 LEVELDB_CACHE_SIZE_MB=32
 BLOCKCHAIN_NETWORK=mainnet
 MINING_ENABLED=true
@@ -139,10 +139,10 @@ create_startup_script() {
     
     cat > $APP_DIR/start-production.sh << 'EOF'
 #!/bin/bash
-cd /opt/afrocoin
+cd /opt/dinari-blockchain
 source venv/bin/activate
 export NODE_ENV=production
-export AFROCOIN_DEBUG=false
+export DINARI_DEBUG=false
 export LEVELDB_CACHE_SIZE_MB=32
 
 # Load environment variables
@@ -175,7 +175,7 @@ create_systemd_service() {
     
     cat > /etc/systemd/system/$SERVICE_NAME.service << EOF
 [Unit]
-Description=Afrocoin Blockchain Node
+Description=Dinari-Blockchain Node
 After=network-online.target
 Wants=network-online.target
 
@@ -219,19 +219,19 @@ setup_monitoring() {
     # Create health check script
     cat > $APP_DIR/health-check.sh << 'EOF'
 #!/bin/bash
-# Afrocoin Blockchain Health Check
+# Dinari-Blockchain Health Check
 
-LOG_FILE="/var/log/afrocoin/health.log"
+LOG_FILE="/var/log/dinari-blockchain/health.log"
 
 # Check if service is running
-if ! systemctl is-active --quiet afrocoin-node; then
-    echo "$(date): ❌ Afrocoin service is not running. Attempting restart..." >> $LOG_FILE
-    systemctl restart afrocoin-node
+if ! systemctl is-active --quiet dinari-blockchain-node; then
+    echo "$(date): ❌ Dinari-blockchain service is not running. Attempting restart..." >> $LOG_FILE
+    systemctl restart dinari-blockchain-node
     sleep 15
-    if systemctl is-active --quiet afrocoin-node; then
-        echo "$(date): ✅ Afrocoin service restarted successfully" >> $LOG_FILE
+    if systemctl is-active --quiet dinari-blockchain-node; then
+        echo "$(date): ✅ Dinari-blockchain service restarted successfully" >> $LOG_FILE
     else
-        echo "$(date): ❌ Failed to restart Afrocoin service" >> $LOG_FILE
+        echo "$(date): ❌ Failed to restart Dinari-blockchain service" >> $LOG_FILE
     fi
     exit 1
 fi
@@ -252,7 +252,7 @@ if [ $USAGE -gt 85 ]; then
 fi
 
 # Check memory usage
-MEMORY_USAGE=$(systemctl show afrocoin-node --property=MemoryCurrent --value)
+MEMORY_USAGE=$(systemctl show dinari-blockchain-node --property=MemoryCurrent --value)
 MEMORY_MB=$((MEMORY_USAGE / 1024 / 1024))
 echo "$(date): 📊 Memory usage: ${MEMORY_MB}MB" >> $LOG_FILE
 EOF
@@ -270,8 +270,8 @@ EOF
 setup_log_rotation() {
     log_info "Setting up log rotation..."
     
-    cat > /etc/logrotate.d/afrocoin << 'EOF'
-/var/log/afrocoin/*.log {
+    cat > /etc/logrotate.d/dinari-blockchain << 'EOF'
+/var/log/dinari-blockchain/*.log {
     daily
     missingok
     rotate 30
@@ -279,7 +279,7 @@ setup_log_rotation() {
     notifempty
     create 644 ubuntu ubuntu
     postrotate
-        systemctl reload afrocoin-node
+        systemctl reload dinari-blockchain-node
     endscript
 }
 EOF
@@ -303,9 +303,9 @@ configure_firewall() {
     ufw allow ssh
     
     # Allow blockchain ports
-    ufw allow $PORT comment 'Afrocoin API'
-    ufw allow $P2P_PORT comment 'Afrocoin P2P'
-    ufw allow 8545 comment 'Afrocoin RPC'
+    ufw allow $PORT comment 'Dinari-blockchain API'
+    ufw allow $P2P_PORT comment 'Dinari-blockchain P2P'
+    ufw allow 8545 comment 'Dinari-blockchain RPC'
     
     # Enable firewall
     ufw --force enable
@@ -319,48 +319,48 @@ create_management_commands() {
     
     cat > $APP_DIR/manage-blockchain.sh << 'EOF'
 #!/bin/bash
-# Afrocoin Blockchain Management Script
+# Dinari-Blockchain Management Script
 
-SERVICE_NAME="afrocoin-node"
+SERVICE_NAME="dinari-blockchain-node"
 
 case "$1" in
     start)
-        echo "🚀 Starting Afrocoin blockchain..."
+        echo "🚀 Starting Dinari-blockchain..."
         sudo systemctl start $SERVICE_NAME
         ;;
     stop)
-        echo "🛑 Stopping Afrocoin blockchain..."
+        echo "🛑 Stopping Dinari-blockchain..."
         sudo systemctl stop $SERVICE_NAME
         ;;
     restart)
-        echo "🔄 Restarting Afrocoin blockchain..."
+        echo "🔄 Restarting Dinari-blockchain..."
         sudo systemctl restart $SERVICE_NAME
         ;;
     status)
-        echo "📊 Afrocoin blockchain status:"
+        echo "📊 Dinari-blockchain status:"
         sudo systemctl status $SERVICE_NAME
         ;;
     logs)
-        echo "📜 Viewing Afrocoin logs (press Ctrl+C to exit):"
+        echo "📜 Viewing Dinari-blockchain logs (press Ctrl+C to exit):"
         sudo journalctl -u $SERVICE_NAME -f
         ;;
     health)
         echo "🏥 Running health check..."
-        /opt/afrocoin/health-check.sh
-        tail -10 /var/log/afrocoin/health.log
+        /opt/dinari-blockchain/health-check.sh
+        tail -10 /var/log/dinari-blockchain/health.log
         ;;
     backup)
         echo "💾 Creating blockchain data backup..."
-        sudo tar -czf "/home/ubuntu/afrocoin-backup-$(date +%Y%m%d-%H%M%S).tar.gz" -C /var/lib afrocoin
+        sudo tar -czf "/home/ubuntu/dinari-blockchain-backup-$(date +%Y%m%d-%H%M%S).tar.gz" -C /var/lib dinari-blockchain
         echo "✅ Backup created in /home/ubuntu/"
         ;;
     info)
-        echo "ℹ️  Afrocoin Blockchain Information:"
-        echo "   Status: $(systemctl is-active afrocoin-node)"
-        echo "   Uptime: $(systemctl show afrocoin-node --property=ActiveEnterTimestamp --value)"
-        echo "   Memory: $(systemctl show afrocoin-node --property=MemoryCurrent --value | awk '{print $1/1024/1024 " MB"}')"
-        echo "   Logs: sudo journalctl -u afrocoin-node"
-        echo "   Data: /var/lib/afrocoin"
+        echo "ℹ️  Dinari-Blockchain Information:"
+        echo "   Status: $(systemctl is-active dinari-blockchain-node)"
+        echo "   Uptime: $(systemctl show dinari-blockchain-node --property=ActiveEnterTimestamp --value)"
+        echo "   Memory: $(systemctl show dinari-blockchain-node --property=MemoryCurrent --value | awk '{print $1/1024/1024 " MB"}')"
+        echo "   Logs: sudo journalctl -u dinari-blockchain-node"
+        echo "   Data: /var/lib/dinari-blockchain"
         if curl -sf http://localhost:5000/health > /dev/null 2>&1; then
             echo "   API: ✅ http://localhost:5000"
         elif curl -sf http://localhost:8545/health > /dev/null 2>&1; then
@@ -368,7 +368,7 @@ case "$1" in
         fi
         ;;
     *)
-        echo "Afrocoin Blockchain Management"
+        echo "Dinari-Blockchain Management"
         echo "Usage: $0 {start|stop|restart|status|logs|health|backup|info}"
         echo ""
         echo "Commands:"
@@ -389,14 +389,14 @@ EOF
     chown $APP_USER:$APP_USER $APP_DIR/manage-blockchain.sh
     
     # Create symlink for easy access
-    ln -sf $APP_DIR/manage-blockchain.sh /usr/local/bin/afrocoin
+    ln -sf $APP_DIR/manage-blockchain.sh /usr/local/bin/dinari
     
     log_success "Management commands created"
 }
 
 # Main execution function
 main() {
-    log_info "=== Starting Afrocoin Blockchain Permanent Deployment ==="
+    log_info "=== Starting Dinari-Blockchain Permanent Deployment ==="
     
     # Run all setup functions
     optimize_system
@@ -410,7 +410,7 @@ main() {
     create_management_commands
     
     # Start the service
-    log_info "Starting Afrocoin blockchain service..."
+    log_info "Starting Dinari-blockchain service..."
     systemctl start $SERVICE_NAME
     
     # Wait for startup
@@ -418,7 +418,7 @@ main() {
     
     # Check status
     if systemctl is-active --quiet $SERVICE_NAME; then
-        log_success "=== 🎉 Afrocoin Blockchain Deployment Complete! ==="
+        log_success "=== 🎉 Dinari-Blockchain Deployment Complete! ==="
         echo ""
         echo -e "${GREEN}✅ Service Status:${NC} $(systemctl is-active $SERVICE_NAME)"
         echo -e "${GREEN}✅ Auto-start:${NC} Enabled (will start automatically on boot)"
@@ -427,14 +427,14 @@ main() {
         echo -e "${GREEN}✅ Firewall:${NC} Configured"
         echo ""
         echo -e "${BLUE}🎯 Management Commands:${NC}"
-        echo "   afrocoin start      # Start blockchain"
-        echo "   afrocoin stop       # Stop blockchain"
-        echo "   afrocoin restart    # Restart blockchain"
-        echo "   afrocoin status     # Check status"
-        echo "   afrocoin logs       # View logs"
-        echo "   afrocoin health     # Health check"
-        echo "   afrocoin backup     # Create backup"
-        echo "   afrocoin info       # System information"
+        echo "   dinari start      # Start blockchain"
+        echo "   dinari stop       # Stop blockchain"
+        echo "   dinari restart    # Restart blockchain"
+        echo "   dinari status     # Check status"
+        echo "   dinari logs       # View logs"
+        echo "   dinari health     # Health check"
+        echo "   dinari backup     # Create backup"
+        echo "   dinari info       # System information"
         echo ""
         
         # Use your AWS public IP
@@ -450,13 +450,13 @@ main() {
         fi
         echo ""
         
-        log_success "🚀 Your Afrocoin blockchain is now running permanently!"
+        log_success "🚀 Your Dinari-blockchain is now running permanently!"
         log_success "🔄 It will automatically restart on crashes and reboots"
-        log_info "📜 View logs with: afrocoin logs"
+        log_info "📜 View logs with: dinari logs"
         
     else
         log_error "❌ Service failed to start. Check logs with: journalctl -u $SERVICE_NAME"
-        log_info "You can also try: afrocoin status"
+        log_info "You can also try: dinari status"
         exit 1
     fi
 }
