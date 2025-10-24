@@ -1120,6 +1120,112 @@ def submit_transaction():
     except Exception as e:
         return jsonify({'error': str(e)}), 500
 
+@app.route('/api/blockchain/transactions', methods=['GET'])
+def get_all_transactions_api():
+    """Get all transactions with pagination support"""
+    try:
+        if not blockchain:
+            return jsonify({'error': 'Blockchain not initialized'}), 503
+
+        # Get pagination parameters from query string
+        start_index = int(request.args.get('start', 0))
+        limit = int(request.args.get('limit', 50))
+        limit = min(limit, 100)  # Max 100 transactions per request
+
+        # Get transactions from permanent storage
+        if hasattr(blockchain, 'get_all_transactions'):
+            result = blockchain.get_all_transactions(start_index, limit, reverse=True)
+
+            # If no transactions in permanent storage, rebuild from blocks
+            if result['total'] == 0:
+                chain_height = blockchain.get_chain_height()
+                if chain_height > 0:
+                    # Rebuild transaction indices from blocks
+                    for block_num in range(chain_height):
+                        try:
+                            block_data = blockchain.get_block_by_index(block_num)
+                            if block_data and 'transactions' in block_data:
+                                for tx in block_data['transactions']:
+                                    if 'hash' not in tx or not tx.get('hash', '').startswith('DTx'):
+                                        tx_obj = Transaction(
+                                            from_address=tx.get('from_address', ''),
+                                            to_address=tx.get('to_address', ''),
+                                            amount=Decimal(str(tx.get('amount', 0))),
+                                            gas_price=Decimal(str(tx.get('gas_price', 0))),
+                                            gas_limit=int(tx.get('gas_limit', 21000)),
+                                            nonce=int(tx.get('nonce', 0)),
+                                            data=tx.get('data', ''),
+                                            timestamp=tx.get('timestamp', int(time.time()))
+                                        )
+                                        tx['hash'] = tx_obj.get_hash()
+                                    blockchain.store_transaction_permanently(tx, block_num)
+                        except Exception as e:
+                            continue
+
+                    # Try again after rebuild
+                    result = blockchain.get_all_transactions(start_index, limit, reverse=True)
+
+            return jsonify({
+                'success': True,
+                'transactions': result['transactions'],
+                'total': result['total'],
+                'has_more': result['has_more'],
+                'start_index': start_index,
+                'limit': limit,
+                'returned': len(result['transactions'])
+            }), 200
+        else:
+            return jsonify({'error': 'Transaction storage not available'}), 503
+
+    except Exception as e:
+        return jsonify({'error': str(e)}), 500
+
+@app.route('/api/blockchain/transactions/<address>', methods=['GET'])
+def get_address_transactions_api(address):
+    """Get all transactions for a specific address"""
+    try:
+        if not blockchain:
+            return jsonify({'error': 'Blockchain not initialized'}), 503
+
+        # Validate address
+        if not DinariAddress.is_valid_address(address):
+            return jsonify({'error': 'Invalid DT address format'}), 400
+
+        # Get pagination parameters
+        start_index = int(request.args.get('start', 0))
+        limit = int(request.args.get('limit', 50))
+        limit = min(limit, 100)
+
+        # Get address transactions
+        if hasattr(blockchain, 'get_address_transactions'):
+            result = blockchain.get_address_transactions(address, start_index, limit)
+            return jsonify({
+                'success': True,
+                'address': address,
+                'transactions': result['transactions'],
+                'total': result['total'],
+                'has_more': result['has_more']
+            }), 200
+        else:
+            # Fallback: scan all transactions
+            all_txs = blockchain.get_all_transactions(0, 1000, reverse=True)
+            address_txs = [
+                tx for tx in all_txs['transactions']
+                if tx.get('from_address') == address or tx.get('to_address') == address
+            ]
+
+            paginated = address_txs[start_index:start_index + limit]
+            return jsonify({
+                'success': True,
+                'address': address,
+                'transactions': paginated,
+                'total': len(address_txs),
+                'has_more': len(address_txs) > start_index + limit
+            }), 200
+
+    except Exception as e:
+        return jsonify({'error': str(e)}), 500
+
 @app.route('/api/blockchain/block/<int:block_index>', methods=['GET'])
 def get_block(block_index):
     """Get block by index"""
